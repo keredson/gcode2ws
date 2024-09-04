@@ -1,15 +1,23 @@
-import { useState, useEffect } from 'react'
-import { Card, Col, Descriptions, Space, Flex, Upload, Button } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined } from '@ant-design/icons';
+import { useState, useEffect, useRef } from 'react'
+import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm } from 'antd';
+import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 
 export function Printer(props) {
   
   const [file, set_file] = useState(null)
-  const [moves, set_moves] = useState(null)
+  const [cmds, set_cmds] = useState(null)
   const [info, set_info] = useState(null)
   const [thumbnail, set_thumbnail] = useState(null)
+  const [progress, set_progress] = useState(null)
+  const [request_print, set_request_print] = useState(false)
+  const [request_cancel, set_request_cancel] = useState(false)
+  const request_cancel_ref = useRef(request_cancel);
+  const [print_exception, set_print_exception] = useState(false)
+  const [nozzle_temp, set_nozzle_temp] = useState(null)
+  const [bed_temp, set_bed_temp] = useState(null)
+  const [print_started_at, set_print_started_at] = useState(null)
   
   console.log(props)
   const index = 1
@@ -25,10 +33,12 @@ export function Printer(props) {
         let info = {}
         let in_thumbnail = false
         let thumbnail = ''
+        let cmds = []
         lines.forEach((line, index) => {
           line = line.trim()
           const comment_index = line.indexOf(';')
           const cmd = comment_index==-1 ? line : line.slice(0, line.indexOf(';')).trim()
+          if (cmd?.length) cmds.push(cmd)
           const comment = comment_index==-1 ? null : line.slice(comment_index + 1).trim()
           if (cmd.length) ++moves
           const colon_index = comment ? comment.indexOf(':') : -1
@@ -41,7 +51,7 @@ export function Printer(props) {
           }
           if (comment?.startsWith('thumbnail begin')) in_thumbnail = true
         });
-        set_moves(moves)
+        set_cmds(cmds)
         set_info(info)
         set_thumbnail(thumbnail.length ? thumbnail : null)
         console.log('info', info)
@@ -50,9 +60,16 @@ export function Printer(props) {
       console.log(file)
       reader.readAsText(file);
     } else {
-      set_moves(null)
       set_info(null)
       set_thumbnail(null)
+      set_progress(null)
+      set_cmds(null)
+      set_request_print(false)
+      set_request_cancel(false)
+      set_print_exception(false)
+      set_nozzle_temp(null)
+      set_bed_temp(null)
+      set_print_started_at(null)
     }
   }, [file])
 
@@ -60,11 +77,86 @@ export function Printer(props) {
     console.log('info', info)
     set_file(info.file.status=='removed' ? null : info.file)
   }
+
+  function print() {
+    set_request_print(true)
+    try {
+      const url = 'ws://'+props.printer.ip+':'+props.printer.port.toString()
+      console.log('connecting', url)
+      const ws = new WebSocket(url);
+
+      let [resolve_ok, reject_ok] = [null, null]
+
+      ws.onmessage = (event) => {
+        console.log('<=', event.data)
+        if (event.data.startsWith('ok')) resolve_ok()
+        else {
+          const state = parse_status(event.data)
+          if (state.T) set_nozzle_temp(state.T)
+          if (state.B) set_bed_temp(state.B)
+        }
+      };
+      ws.onerror = (error) => {
+        reject_ok(error);
+      };
+
+      function send_cmd(socket, cmd) {
+        return new Promise((resolve, reject) => {
+          [resolve_ok, reject_ok] = [resolve, reject]
+          console.log('=>', cmd)
+          socket.send(cmd);
+        });
+      }
+
+      ws.onopen = async () => {
+        console.log('connected')
+        await wait(2500);
+        set_request_print(false)
+        set_progress(0)
+        set_print_started_at(Date.now())
+        //await send_cmd(ws, 'M155 S1') // request temp updates
+        console.log('cmds', cmds)
+
+        try {
+          for (let i=0; i<cmds.length; ++i) {
+            if (request_cancel_ref.current) {
+              console.log('cancelling')
+              set_print_exception(true)
+              for (const cancel_cmd in CANCEL_CMDS) {
+                await send_cmd(ws, cancel_cmd)
+              }
+              return
+            }
+            const cmd = cmds[i]
+            set_progress(i)
+            //if (cmd=='M155 S0') continue // always report temp
+            await send_cmd(ws, cmd)
+          }
+          set_progress(100)
+        } catch(error) {
+          alert(error)
+          console.log('failed to send', error)
+          set_print_exception(true)
+        } finally {
+          ws.close()
+        }
+      }
+
+    } catch(error) {
+      alert(error)
+      console.log('failed to print', error)
+      set_print_exception(true)
+    }
+  }
+
+  function cancel() {
+    set_request_cancel(true)
+  }
   
   const description_title = (
     <Flex align='center' justify='center' gap='small'>
       Model:
-      {thumbnail ? <img src={'data:image/png;base64,'+thumbnail} style={{verticalAlign:'middle'}}/> : null}
+      {thumbnail ? <img src={'data:image/png;base64,'+thumbnail} style={{verticalAlign:'middle', maxHeight:'32pt'}}/> : null}
       <Button type="text" icon={<DeleteOutlined />} onClick={() => set_file(null)} />
     </Flex>
   )
@@ -94,14 +186,8 @@ export function Printer(props) {
             {info?.['TARGET_MACHINE.NAME'] ? <Descriptions.Item label="Target" span={2}>
               {info?.['TARGET_MACHINE.NAME']}
             </Descriptions.Item> : null}
-            {moves ? <Descriptions.Item label="Moves">
-                {moves.toLocaleString()}
-              </Descriptions.Item> : null}
-            {info?.TIME ? <Descriptions.Item label="Time">
-              {pretty([parseFloat(info?.TIME), 0])}
-            </Descriptions.Item> : null}
             {info?.['Filament used'] ? <Descriptions.Item label="Filament">
-              {Math.ceil(100*parseFloat(info['Filament used'])).toLocaleString()+'cm'}
+              {(Math.ceil(100*parseFloat(info['Filament used']))/100).toLocaleString()+'m / '+ metersToGrams(parseFloat(info['Filament used']))+'g'}
             </Descriptions.Item> : null}
             {info?.MAXX && info?.MAXY && info?.MAXZ ? <Descriptions.Item label="Box">
               {Math.ceil(info?.MAXX).toLocaleString()+'x'+Math.ceil(info?.MAXY).toLocaleString()+'x'+Math.ceil(info?.MAXZ).toLocaleString()+"mm"}
@@ -109,15 +195,76 @@ export function Printer(props) {
             {info?.LAYER_COUNT ? <Descriptions.Item label="Layers">
               {parseInt(info?.LAYER_COUNT).toLocaleString()}
             </Descriptions.Item> : null}
+            {cmds?.length ? <Descriptions.Item label="G-Code">
+              {progress ? progress.toLocaleString()+' of ' : null}
+              {cmds?.length.toLocaleString()}
+            </Descriptions.Item> : null}
+            {info?.TIME ? <Descriptions.Item label="Time">
+              {print_started_at ? pretty([parseFloat(info?.TIME), 0]) +' ('+ pretty([parseFloat(info?.TIME) - (Date.now()-print_started_at)/1000, 0]) +' left)' : pretty([parseFloat(info?.TIME), 0])}
+            </Descriptions.Item> : null}
+            {nozzle_temp==null && bed_temp==null ? null : <Descriptions.Item label="Temp">
+              {(Math.round((nozzle_temp||0)*10)/10).toLocaleString()}&deg; / {(Math.round((bed_temp||0)*10)/10).toLocaleString()}&deg;C
+            </Descriptions.Item>}
           </Descriptions> : null}
 
-          {file ? <Button type="primary" icon={<PrinterOutlined />}>
+          {file && progress==null ? <Button type="primary" icon={<PrinterOutlined />} onClick={()=>print()} loading={request_print}>
             Print
           </Button> : null}
+          {progress==null ? null : <Progress percent={Math.round(100*progress/cmds.length)} status={print_exception ? 'exception' : null} />}
+          {progress==null || progress==100 ? null : <Popconfirm description="Are you sure you want to cancel?" onConfirm={()=>cancel()}>
+            <Button type="" icon={<StopOutlined />} loading={request_cancel}>
+              Cancel
+            </Button>
+          </Popconfirm>}
         </Flex>
       </Card>
 
     </Col>
 
   )
+}
+
+function metersToGrams(length) {
+  // Constants
+  const pi = Math.PI;
+  const diameter = 0.00175; // Diameter in meters (1.75 mm)
+  const density = 1250 * 1000; // Density in g/m³ (example for PLA)
+  
+  // Calculate the cross-sectional area of the filament
+  const radius = diameter / 2;
+  const crossSectionalArea = pi * radius * radius;
+
+  // Calculate the volume of the filament
+  const volume = length * crossSectionalArea;
+
+  // Calculate the weight of the filament
+  const weight = volume * density;
+
+  return Math.ceil(weight);
+}
+
+
+const CANCEL_CMDS = [
+  'M190 S0', // Turn off heat bed, don't wait.
+  'M104 S0', // Turn off nozzle, don't wait
+  'M107', // Turn off part fan
+  'M84', // Turn off stepper motors.    
+]
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function parse_status(str) {
+  const pairs = str.split(' ')
+  const result = {};
+  pairs.forEach(pair => {
+    try {
+      const [key, value] = pair.split(':')
+      result[key] = parseFloat(value)
+    } catch (error) {
+      console.log('could not parse status pair', pair)
+    }
+  });
+  return result;
 }
