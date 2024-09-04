@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined } from '@ant-design/icons';
+import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 
@@ -152,7 +152,7 @@ export function Printer(props) {
             //if (cmd=='M155 S0') continue // always report temp
             await send_cmd(ws, cmd)
           }
-          if (!fake) set_progress(100)
+          if (!fake) set_progress(cmds.length)
         } catch(error) {
           alert(error)
           console.log('failed to send', error)
@@ -184,7 +184,7 @@ export function Printer(props) {
     <Space size="small">
       <PrinterTwoTone />
       <span style={{ color: 'gray', fontWeight: 'normal' }}>
-        {props.printer.ip}:{props.printer.port} {status}
+        @ ws://{props.printer.ip}:{props.printer.port} <a href={'http://'+props.printer.ip} target='_blank'><LinkOutlined /></a> {status} 
       </span>
     </Space>
   )
