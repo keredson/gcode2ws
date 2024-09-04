@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined } from '@ant-design/icons';
+import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip, Spin, Alert } from 'antd';
+import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
+const RUNNING_COMMAND = {} // {url: {cmd, resolve_ok, reject_ok}}
 
 export function Printer(props) {
   
@@ -14,20 +15,70 @@ export function Printer(props) {
   const [request_print, set_request_print] = useState(false)
   const [request_cancel, set_request_cancel] = useState(false)
   const [cancelled, set_cancelled] = useState(false)
-  const request_cancel_ref = useRef(request_cancel);
   const [print_exception, set_print_exception] = useState(false)
   const [nozzle_temp, set_nozzle_temp] = useState(null)
   const [nozzle_temp_setpoint, set_nozzle_temp_setpoint] = useState(null)
   const [bed_temp, set_bed_temp] = useState(null)
   const [bed_temp_setpoint, set_bed_temp_setpoint] = useState(null)
-  const [status, set_status] = useState(null) // reported by printer
   const [print_started_at, set_print_started_at] = useState(null)
+  const [ws, set_ws] = useState(null)
   
   const index = 1
 
+  const request_cancel_ref = useRef(request_cancel);
   useEffect(() => {
     request_cancel_ref.current = request_cancel;
   }, [request_cancel]);
+
+  const ws_ref = useRef(ws);
+  useEffect(() => {
+    ws_ref.current = ws;
+  }, [ws]);
+
+  const url = 'ws://'+props.printer.ip+':'+props.printer.port.toString()
+
+  async function connect() {
+    set_ws(null)
+    await wait(1000)
+    console.log('connecting', url)
+    const ws = new WebSocket(url);
+    ws.onopen = async () => {
+      console.log('connected')
+      await wait(2500);
+      set_ws(ws)
+    }
+    ws.onclose = () => {
+      set_ws(undefined)
+    }
+    ws.onmessage = (event) => {
+      console.log('<=', event.data)
+      const state = parse_status(event.data)
+      if (state.T) set_nozzle_temp(state.T);
+      if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
+      if (state.B) set_bed_temp(state.B);
+      if (state.Bs) set_bed_temp_setpoint(state.Bs);
+      if (RUNNING_COMMAND[url].resolve_ok && state.ok) {
+        RUNNING_COMMAND[url].resolve_ok();
+        RUNNING_COMMAND[url] = {cmd:null, resolve_ok:null, reject_ok:null}
+      }
+    };
+    ws.onerror = (error) => {
+      RUNNING_COMMAND[url]?.reject_ok(error);
+      RUNNING_COMMAND[url] = {cmd:null, resolve_ok:null, reject_ok:null}
+    };
+  }
+
+  useEffect(() => {
+    connect()
+  }, []);
+
+  function send_cmd(cmd) {
+    return new Promise((resolve_ok, reject_ok) => {
+      RUNNING_COMMAND[url] = {cmd, resolve_ok, reject_ok}
+      console.log('=>', cmd)
+      ws_ref.current.send(cmd);
+    });
+  }
 
   useEffect(() => {
     if (file && file.status!='removed') {
@@ -74,14 +125,13 @@ export function Printer(props) {
       set_request_cancel(false)
       set_cancelled(false)
       set_print_exception(false)
-      set_nozzle_temp(null)
-      set_bed_temp(null)
       set_print_started_at(null)
     }
   }, [file])
 
   async function inquire() {
-    await print(['M105'], true)
+    while (!ws_ref.current) await wait(1000)
+    await send_cmd('M105')
   }
 
   useEffect(() => {
@@ -93,83 +143,47 @@ export function Printer(props) {
     set_file(info.file.status=='removed' ? null : info.file)
   }
 
-  function print(cmds, fake) {
-    if (!fake) set_request_print(true)
+  async function print(cmds) {
+    set_request_print(true)
+    set_print_exception(false)
+    const url = 'ws://'+props.printer.ip+':'+props.printer.port.toString()
+
+    while (!ws_ref.current) await wait(1000)
+
+    set_request_print(false)
+    set_progress(0)
+    set_print_started_at(Date.now())
+
+    console.log('cmds', cmds)
+
     try {
-      const url = 'ws://'+props.printer.ip+':'+props.printer.port.toString()
-      console.log('connecting', url)
-      const ws = new WebSocket(url);
-
-      let [resolve_ok, reject_ok] = [null, null]
-
-      ws.onmessage = (event) => {
-        console.log('<=', event.data)
-        const state = parse_status(event.data)
-        if (state.T) set_nozzle_temp(state.T);
-        if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
-        if (state.B) set_bed_temp(state.B);
-        if (state.Bs) set_bed_temp_setpoint(state.Bs);
-        if (resolve_ok && state.ok) resolve_ok();
-      };
-      ws.onerror = (error) => {
-        reject_ok(error);
-      };
-
-      function send_cmd(socket, cmd) {
-        return new Promise((resolve, reject) => {
-          [resolve_ok, reject_ok] = [resolve, reject]
-          console.log('=>', cmd)
-          socket.send(cmd);
-        });
-      }
-
-      ws.onopen = async () => {
-        console.log('connected')
-        await wait(2500);
-        if (!fake) {
-          set_request_print(false)
-          set_progress(0)
-          set_print_started_at(Date.now())
-        }
-        //await send_cmd(ws, 'M155 S1') // request temp updates
-        console.log('cmds', cmds)
-
-        try {
-          for (let i=0; i<cmds.length; ++i) {
-            if (request_cancel_ref.current) {
-              console.log('cancelling')
-              await(2500)
-              if (!fake) set_print_exception(true)
-              for (let j in CANCEL_CMDS) {
-                const cancel_cmd = CANCEL_CMDS[j]
-                await send_cmd(ws, cancel_cmd)
-              }
-              set_cancelled(true)
-              return
-            }
-            const cmd = cmds[i]
-            if (!fake) set_progress(i)
-            //if (cmd=='M155 S0') continue // always report temp
-            await send_cmd(ws, cmd)
+      for (let i=0; i<cmds.length; ++i) {
+        if (request_cancel_ref.current) {
+          console.log('cancelling')
+          await(2500)
+          set_print_exception(true)
+          for (let j in CANCEL_CMDS) {
+            const cancel_cmd = CANCEL_CMDS[j]
+            await send_cmd(cancel_cmd)
           }
-          if (!fake) set_progress(cmds.length)
-        } catch(error) {
-          alert(error)
-          console.log('failed to send', error)
-          if (!fake) set_print_exception(true)
-        } finally {
-          console.log('closing websocket...')
-          ws.close()
-          set_request_print(false)
-          set_request_cancel(false)
+          set_cancelled(true)
+          return
         }
+        const cmd = cmds[i]
+        set_progress(i)
+        //if (cmd=='M155 S0') continue // always report temp
+        await send_cmd(cmd)
       }
-
+      set_progress(cmds.length)
     } catch(error) {
       alert(error)
-      console.log('failed to print', error)
-      if (!fake) set_print_exception(true)
+      console.log('failed to send', error)
+      set_print_exception(true)
+    } finally {
+      set_request_print(false)
+      set_request_cancel(false)
     }
+
   }
 
   const description_title = (
@@ -180,14 +194,21 @@ export function Printer(props) {
     </Flex>
   )
 
+  let connection_status = null;
+  if (ws===undefined) connection_status = null
+  else if (!ws) connection_status = <Spin size='small'/>
+  else connection_status = <a href={'http://'+props.printer.ip} target='_blank'><LinkOutlined /></a>
+
   const print_description = (
     <Space size="small">
       <PrinterTwoTone />
       <span style={{ color: 'gray', fontWeight: 'normal' }}>
-        @ ws://{props.printer.ip}:{props.printer.port} <a href={'http://'+props.printer.ip} target='_blank'><LinkOutlined /></a> {status} 
+        @ ws://{props.printer.ip}:{props.printer.port} {connection_status}
       </span>
     </Space>
   )
+
+  const progress_percent = progress== null || !cmds?.length ? null : Math.round(100*progress/cmds?.length)
 
   return (
     <Col xs={24} sm={12} md={12} lg={8}>
@@ -196,6 +217,8 @@ export function Printer(props) {
         <Flex vertical align='center' gap='small'>
 
           {print_description}
+
+          {ws===undefined ? <Alert message="Printer Disconnected" type="error" showIcon /> : null}
   
           <Descriptions title={file ? description_title : null} column={{ xs: 1, sm: 1, md: 2, lg:2}} size='small' style={{marginTop:'.5em'}}>
             {file?.name ? <Descriptions.Item label="File" span={2}>
@@ -232,19 +255,33 @@ export function Printer(props) {
             </Descriptions.Item>}
           </Descriptions>
 
-          {file ? null : <Upload maxCount={1} onChange={info => handle_gcode(info)} beforeUpload={()=>false}>
-            <Button icon={<UploadOutlined />}>GCode</Button>
-          </Upload>}
+          {progress==null ? null : <Progress percent={progress_percent} status={print_exception ? 'exception' : null} />}
 
-          {file && progress==null ? <Button type="primary" icon={<PrinterOutlined />} onClick={()=>print(cmds)} loading={request_print}>
-            Print
-          </Button> : null}
-          {progress==null ? null : <Progress percent={Math.round(100*progress/cmds?.length)} status={print_exception ? 'exception' : null} />}
-          {progress==null || progress==100 ? null : <Popconfirm description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
-            {cancelled ? null : <Button type="" icon={<StopOutlined />} loading={request_cancel}>
-              Cancel
-            </Button>}
-          </Popconfirm>}
+          <Space>
+
+            {file ? null : <Upload maxCount={1} onChange={info => handle_gcode(info)} beforeUpload={()=>false}>
+              <Button icon={<UploadOutlined />}>GCode</Button>
+            </Upload>}
+            {ws===undefined ? <Button icon={<WarningOutlined />} onClick={()=>connect()} danger>Reconnect</Button> : null}
+
+            {file && ws && progress==null ? <Button type="primary" icon={<PrinterOutlined />} onClick={()=>print(cmds)} loading={request_print}>
+              Print
+            </Button> : null}
+
+            {progress==null || progress_percent==100 ? null : (
+              <Popconfirm description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
+              {cancelled ? null : <Button type="" icon={<StopOutlined />} loading={request_cancel} danger>
+                Cancel
+              </Button>}
+              </Popconfirm>
+            )}
+
+            {print_exception || progress_percent==100 ? <Button icon={<PrinterOutlined />} onClick={()=>print(cmds)} loading={request_print}>
+              Print Again
+            </Button> : null}
+
+          </Space>
+
 
         </Flex>
       </Card>

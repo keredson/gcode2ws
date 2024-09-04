@@ -99,7 +99,11 @@ export function Search(props) {
   }
 
   const subnet_buttons = ['10.0.0.x','192.168.0.x','192.168.1.x','192.168.68.x',].map(subnet => (
-    <a href='#' onClick={()=>set_ip_and_port(subnet) || search(subnet)} style={{fontSize:'smaller', color:'#a0a0a0', wordBreak:'none'}}>{subnet}</a>
+    <a href='#' onClick={(e)=>{
+      e.preventDefault()
+      set_ip_and_port(subnet)
+      search(subnet)
+    }} style={{fontSize:'smaller', color:'#a0a0a0', wordBreak:'none'}}>{subnet}</a>
   ))
 
   return (
