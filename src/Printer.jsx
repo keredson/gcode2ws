@@ -16,10 +16,12 @@ export function Printer(props) {
   const request_cancel_ref = useRef(request_cancel);
   const [print_exception, set_print_exception] = useState(false)
   const [nozzle_temp, set_nozzle_temp] = useState(null)
+  const [nozzle_temp_setpoint, set_nozzle_temp_setpoint] = useState(null)
   const [bed_temp, set_bed_temp] = useState(null)
+  const [bed_temp_setpoint, set_bed_temp_setpoint] = useState(null)
+  const [status, set_status] = useState(null) // reported by printer
   const [print_started_at, set_print_started_at] = useState(null)
   
-  console.log(props)
   const index = 1
   const printer_description_items = Object.entries(props.printer).map(([k, v], i) => ({ key: i, label: k, children: v }))
   
@@ -73,13 +75,21 @@ export function Printer(props) {
     }
   }, [file])
 
+  async function inquire() {
+    await print(['M105'], true)
+  }
+
+  useEffect(() => {
+    inquire()
+  }, [])
+
   async function handle_gcode(info) {
     console.log('info', info)
     set_file(info.file.status=='removed' ? null : info.file)
   }
 
-  function print() {
-    set_request_print(true)
+  function print(cmds, fake) {
+    if (!fake) set_request_print(true)
     try {
       const url = 'ws://'+props.printer.ip+':'+props.printer.port.toString()
       console.log('connecting', url)
@@ -89,12 +99,12 @@ export function Printer(props) {
 
       ws.onmessage = (event) => {
         console.log('<=', event.data)
-        if (event.data.startsWith('ok')) resolve_ok()
-        else {
-          const state = parse_status(event.data)
-          if (state.T) set_nozzle_temp(state.T)
-          if (state.B) set_bed_temp(state.B)
-        }
+        const state = parse_status(event.data)
+        if (state.T) set_nozzle_temp(state.T);
+        if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
+        if (state.B) set_bed_temp(state.B);
+        if (state.Bs) set_bed_temp_setpoint(state.Bs);
+        if (state.ok) resolve_ok();
       };
       ws.onerror = (error) => {
         reject_ok(error);
@@ -111,9 +121,11 @@ export function Printer(props) {
       ws.onopen = async () => {
         console.log('connected')
         await wait(2500);
-        set_request_print(false)
-        set_progress(0)
-        set_print_started_at(Date.now())
+        if (!fake) {
+          set_request_print(false)
+          set_progress(0)
+          set_print_started_at(Date.now())
+        }
         //await send_cmd(ws, 'M155 S1') // request temp updates
         console.log('cmds', cmds)
 
@@ -121,22 +133,22 @@ export function Printer(props) {
           for (let i=0; i<cmds.length; ++i) {
             if (request_cancel_ref.current) {
               console.log('cancelling')
-              set_print_exception(true)
+              if (!fake) set_print_exception(true)
               for (const cancel_cmd in CANCEL_CMDS) {
                 await send_cmd(ws, cancel_cmd)
               }
               return
             }
             const cmd = cmds[i]
-            set_progress(i)
+            if (!fake) set_progress(i)
             //if (cmd=='M155 S0') continue // always report temp
             await send_cmd(ws, cmd)
           }
-          set_progress(100)
+          if (!fake) set_progress(100)
         } catch(error) {
           alert(error)
           console.log('failed to send', error)
-          set_print_exception(true)
+          if (!fake) set_print_exception(true)
         } finally {
           ws.close()
         }
@@ -145,7 +157,7 @@ export function Printer(props) {
     } catch(error) {
       alert(error)
       console.log('failed to print', error)
-      set_print_exception(true)
+      if (!fake) set_print_exception(true)
     }
   }
 
@@ -165,7 +177,7 @@ export function Printer(props) {
     <Space size="small">
       <PrinterTwoTone />
       <span style={{ color: 'gray', fontWeight: 'normal' }}>
-        {props.printer.ip}:{props.printer.port}
+        {props.printer.ip}:{props.printer.port} {status}
       </span>
     </Space>
   )
@@ -175,11 +187,10 @@ export function Printer(props) {
       <Card>
 
         <Flex vertical align='center' gap='small'>
-        {print_description}
-          {file ? null : <Upload maxCount={1} onChange={info => handle_gcode(info)} beforeUpload={()=>false}>
-            <Button icon={<UploadOutlined />}>GCode</Button>
-          </Upload>}
-          {file ? <Descriptions title={description_title} column={{ xs: 1, sm: 1, md: 2, lg:2}} size='small' style={{marginTop:'.5em'}}>
+
+          {print_description}
+  
+          <Descriptions title={file ? description_title : null} column={{ xs: 1, sm: 1, md: 2, lg:2}} size='small' style={{marginTop:'.5em'}}>
             {file?.name ? <Descriptions.Item label="File" span={2}>
               {file?.name}
             </Descriptions.Item> : null}
@@ -202,20 +213,28 @@ export function Printer(props) {
             {info?.TIME ? <Descriptions.Item label="Time">
               {print_started_at ? pretty([parseFloat(info?.TIME), 0]) +' ('+ pretty([parseFloat(info?.TIME) - (Date.now()-print_started_at)/1000, 0]) +' left)' : pretty([parseFloat(info?.TIME), 0])}
             </Descriptions.Item> : null}
-            {nozzle_temp==null && bed_temp==null ? null : <Descriptions.Item label="Temp">
-              {(Math.round((nozzle_temp||0)*10)/10).toLocaleString()}&deg; / {(Math.round((bed_temp||0)*10)/10).toLocaleString()}&deg;C
+            {nozzle_temp==null ? null : <Descriptions.Item label="Nozzle">
+              {(Math.round((nozzle_temp||0)*10)/10).toLocaleString()}&deg; / {(Math.round((nozzle_temp_setpoint||0)*10)/10).toLocaleString()}&deg; C
             </Descriptions.Item>}
-          </Descriptions> : null}
+            {bed_temp==null ? null : <Descriptions.Item label="Bed">
+              {(Math.round((bed_temp||0)*10)/10).toLocaleString()}&deg; / {(Math.round((bed_temp_setpoint||0)*10)/10).toLocaleString()}&deg; C
+            </Descriptions.Item>}
+          </Descriptions>
 
-          {file && progress==null ? <Button type="primary" icon={<PrinterOutlined />} onClick={()=>print()} loading={request_print}>
+          {file ? null : <Upload maxCount={1} onChange={info => handle_gcode(info)} beforeUpload={()=>false}>
+            <Button icon={<UploadOutlined />}>GCode</Button>
+          </Upload>}
+
+          {file && progress==null ? <Button type="primary" icon={<PrinterOutlined />} onClick={()=>print(cmds)} loading={request_print}>
             Print
           </Button> : null}
-          {progress==null ? null : <Progress percent={Math.round(100*progress/cmds.length)} status={print_exception ? 'exception' : null} />}
+          {progress==null ? null : <Progress percent={Math.round(100*progress/cmds?.length)} status={print_exception ? 'exception' : null} />}
           {progress==null || progress==100 ? null : <Popconfirm description="Are you sure you want to cancel?" onConfirm={()=>cancel()}>
             <Button type="" icon={<StopOutlined />} loading={request_cancel}>
               Cancel
             </Button>
           </Popconfirm>}
+
         </Flex>
       </Card>
 
@@ -256,15 +275,21 @@ function wait(ms) {
 }
 
 function parse_status(str) {
+  // like: ok N0 P15 B15 T:25.2 /0.0 B:23.1 /0.0 T0:25.2 /0.0 @:0 B@:0
   const pairs = str.split(' ')
   const result = {};
+  let last_key = null
   pairs.forEach(pair => {
     try {
       const [key, value] = pair.split(':')
+      console.log(pair, key, value)
       result[key] = parseFloat(value)
+      if (last_key && key.startsWith('/')) result[key+'s'] = parseFloat(key.slice(1))
+      last_key = key
     } catch (error) {
       console.log('could not parse status pair', pair)
     }
   });
+  result.ok = str.startsWith('ok')
   return result;
 }
