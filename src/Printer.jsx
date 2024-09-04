@@ -13,6 +13,7 @@ export function Printer(props) {
   const [progress, set_progress] = useState(null)
   const [request_print, set_request_print] = useState(false)
   const [request_cancel, set_request_cancel] = useState(false)
+  const [cancelled, set_cancelled] = useState(false)
   const request_cancel_ref = useRef(request_cancel);
   const [print_exception, set_print_exception] = useState(false)
   const [nozzle_temp, set_nozzle_temp] = useState(null)
@@ -23,8 +24,11 @@ export function Printer(props) {
   const [print_started_at, set_print_started_at] = useState(null)
   
   const index = 1
-  const printer_description_items = Object.entries(props.printer).map(([k, v], i) => ({ key: i, label: k, children: v }))
-  
+
+  useEffect(() => {
+    request_cancel_ref.current = request_cancel;
+  }, [request_cancel]);
+
   useEffect(() => {
     if (file && file.status!='removed') {
       const reader = new FileReader();
@@ -68,6 +72,7 @@ export function Printer(props) {
       set_cmds(null)
       set_request_print(false)
       set_request_cancel(false)
+      set_cancelled(false)
       set_print_exception(false)
       set_nozzle_temp(null)
       set_bed_temp(null)
@@ -104,7 +109,7 @@ export function Printer(props) {
         if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
         if (state.B) set_bed_temp(state.B);
         if (state.Bs) set_bed_temp_setpoint(state.Bs);
-        if (state.ok) resolve_ok();
+        if (resolve_ok && state.ok) resolve_ok();
       };
       ws.onerror = (error) => {
         reject_ok(error);
@@ -133,10 +138,13 @@ export function Printer(props) {
           for (let i=0; i<cmds.length; ++i) {
             if (request_cancel_ref.current) {
               console.log('cancelling')
+              await(2500)
               if (!fake) set_print_exception(true)
-              for (const cancel_cmd in CANCEL_CMDS) {
+              for (let j in CANCEL_CMDS) {
+                const cancel_cmd = CANCEL_CMDS[j]
                 await send_cmd(ws, cancel_cmd)
               }
+              set_cancelled(true)
               return
             }
             const cmd = cmds[i]
@@ -150,7 +158,10 @@ export function Printer(props) {
           console.log('failed to send', error)
           if (!fake) set_print_exception(true)
         } finally {
+          console.log('closing websocket...')
           ws.close()
+          set_request_print(false)
+          set_request_cancel(false)
         }
       }
 
@@ -161,10 +172,6 @@ export function Printer(props) {
     }
   }
 
-  function cancel() {
-    set_request_cancel(true)
-  }
-  
   const description_title = (
     <Flex align='center' justify='center' gap='small'>
       Model:
@@ -229,10 +236,10 @@ export function Printer(props) {
             Print
           </Button> : null}
           {progress==null ? null : <Progress percent={Math.round(100*progress/cmds?.length)} status={print_exception ? 'exception' : null} />}
-          {progress==null || progress==100 ? null : <Popconfirm description="Are you sure you want to cancel?" onConfirm={()=>cancel()}>
-            <Button type="" icon={<StopOutlined />} loading={request_cancel}>
+          {progress==null || progress==100 ? null : <Popconfirm description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
+            {cancelled ? null : <Button type="" icon={<StopOutlined />} loading={request_cancel}>
               Cancel
-            </Button>
+            </Button>}
           </Popconfirm>}
 
         </Flex>
@@ -267,7 +274,7 @@ const CANCEL_CMDS = [
   'M190 S0', // Turn off heat bed, don't wait.
   'M104 S0', // Turn off nozzle, don't wait
   'M107', // Turn off part fan
-  'M84', // Turn off stepper motors.    
+  'M84 S1', // Turn off stepper motors.    
 ]
 
 function wait(ms) {
@@ -282,7 +289,6 @@ function parse_status(str) {
   pairs.forEach(pair => {
     try {
       const [key, value] = pair.split(':')
-      console.log(pair, key, value)
       result[key] = parseFloat(value)
       if (last_key && key.startsWith('/')) result[key+'s'] = parseFloat(key.slice(1))
       last_key = key
