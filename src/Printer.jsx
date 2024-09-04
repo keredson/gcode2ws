@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm } from 'antd';
+import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip } from 'antd';
 import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
@@ -174,8 +174,8 @@ export function Printer(props) {
 
   const description_title = (
     <Flex align='center' justify='center' gap='small'>
-      Model:
       {thumbnail ? <img src={'data:image/png;base64,'+thumbnail} style={{verticalAlign:'middle', maxHeight:'32pt'}}/> : null}
+      Model
       <Button type="text" icon={<DeleteOutlined />} onClick={() => set_file(null)} />
     </Flex>
   )
@@ -208,12 +208,12 @@ export function Printer(props) {
               {(Math.ceil(100*parseFloat(info['Filament used']))/100).toLocaleString()+'m / '+ metersToGrams(parseFloat(info['Filament used']))+'g'}
             </Descriptions.Item> : null}
             {info?.MAXX && info?.MAXY && info?.MAXZ ? <Descriptions.Item label="Box">
-              {Math.ceil(info?.MAXX).toLocaleString()+'x'+Math.ceil(info?.MAXY).toLocaleString()+'x'+Math.ceil(info?.MAXZ).toLocaleString()+"mm"}
+              {Math.ceil(info?.MAXX).toLocaleString()+'×'+Math.ceil(info?.MAXY).toLocaleString()+'×'+Math.ceil(info?.MAXZ).toLocaleString()}mm³
             </Descriptions.Item> : null}
             {info?.LAYER_COUNT ? <Descriptions.Item label="Layers">
               {parseInt(info?.LAYER_COUNT).toLocaleString()}
             </Descriptions.Item> : null}
-            {cmds?.length ? <Descriptions.Item label="G-Code">
+            {cmds?.length ? <Descriptions.Item label="Steps">
               {progress ? progress.toLocaleString()+' of ' : null}
               {cmds?.length.toLocaleString()}
             </Descriptions.Item> : null}
@@ -221,10 +221,14 @@ export function Printer(props) {
               {print_started_at ? pretty([parseFloat(info?.TIME), 0]) +' ('+ pretty([parseFloat(info?.TIME) - (Date.now()-print_started_at)/1000, 0]) +' left)' : pretty([parseFloat(info?.TIME), 0])}
             </Descriptions.Item> : null}
             {nozzle_temp==null ? null : <Descriptions.Item label="Nozzle">
-              {(Math.round((nozzle_temp||0)*10)/10).toLocaleString()}&deg; / {(Math.round((nozzle_temp_setpoint||0)*10)/10).toLocaleString()}&deg; C
+              <Tooltip title="Actual">{(Math.round((nozzle_temp||0)*10)/10).toLocaleString()}&deg;</Tooltip>
+               &nbsp;/&nbsp;
+               <Tooltip title="Target">{(Math.round((nozzle_temp_setpoint||0)*10)/10).toLocaleString()}&deg;</Tooltip> C
             </Descriptions.Item>}
             {bed_temp==null ? null : <Descriptions.Item label="Bed">
-              {(Math.round((bed_temp||0)*10)/10).toLocaleString()}&deg; / {(Math.round((bed_temp_setpoint||0)*10)/10).toLocaleString()}&deg; C
+              <Tooltip title="Actual">{(Math.round((bed_temp||0)*10)/10).toLocaleString()}&deg;</Tooltip>
+              &nbsp;/&nbsp;
+              <Tooltip title="Target">{(Math.round((bed_temp_setpoint||0)*10)/10).toLocaleString()}&deg;</Tooltip> C
             </Descriptions.Item>}
           </Descriptions>
 
