@@ -41,22 +41,22 @@ export function Printer(props) {
   async function connect(first_time) {
     if (!first_time) set_ws(null)
     await wait(1000)
-    console.log('connecting', props.printer.url)
-    const ws = first_time ? ws_ref.current : new WebSocket(props.printer.url);
+    console.log('connecting', props.printer.url, first_time)
+    const ws = first_time ? props.printer.ws : new WebSocket(props.printer.url);
     ws.onopen = async () => {
       console.log('connected')
       await wait(2500);
-      set_ws(ws)
+      if (!first_time) set_ws(ws)
     }
     ws.onclose = () => {
-      set_ws(undefined)
+      //set_ws(undefined)
       set_nozzle_temp(null)
       set_nozzle_temp_setpoint(null)
       set_bed_temp(null)
       set_bed_temp_setpoint(null)
     }
     ws.onmessage = (event) => {
-      console.log('<=', event.data)
+      console.log(event.data, '<=', ws_ref.current)
       const state = parse_status(event.data)
       if (state.T) set_nozzle_temp(state.T);
       if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
@@ -74,13 +74,15 @@ export function Printer(props) {
   }
 
   useEffect(() => {
+    console.log('props.printer.ws', props.printer.ws, ws, ws_ref.current)
     connect(true)
+    setTimeout(() => inquire(), 1000)
   }, []);
 
   function send_cmd(cmd) {
     return new Promise((resolve_ok, reject_ok) => {
       RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
-      console.log('=>', cmd)
+      console.log(cmd, '=>', ws_ref.current)
       ws_ref.current.send(cmd);
     });
   }
@@ -138,10 +140,6 @@ export function Printer(props) {
     while (!ws_ref.current) await wait(1000)
     await send_cmd('M105')
   }
-
-  useEffect(() => {
-    inquire()
-  }, [])
 
   async function handle_gcode(info) {
     console.log('info', info)
@@ -217,8 +215,9 @@ export function Printer(props) {
   const progress_percent = progress== null || !cmds?.length ? null : Math.round(100*progress/cmds?.length)
 
   function close_action() {
-    ws?.close()
-    props.close()
+    console.log('close_action', ws_ref.current)
+    ws_ref.current?.close()
+    props.remove(props.printer.url)
   }
 
   const actions = [];

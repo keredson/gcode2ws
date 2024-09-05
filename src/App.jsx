@@ -29,10 +29,9 @@ function App() {
     }
   }
 
-  function remove(i) {
-    console.log('printers_ref.printers',printers_ref.current, i)
-    printers_ref.current.splice(i, 1)
-    set_printers([...printers_ref.current])
+  function remove(url) {
+    const next_printers = [...printers_ref.current.filter(printer=>printer.url!=url)]
+    set_printers(next_printers)
   }
 
   return (
@@ -41,7 +40,7 @@ function App() {
       <Title style={{textAlign:'center'}}>Send G-Code</Title>
       <Row gutter={[16, 16]}>
         <Search add_printer={(ws, url)=>add_printer(ws, url)} printer_count={printers.length} />
-      {printers.map((printer, i) => <Printer key={i} printer={printer} close={()=>remove(i)} />)}
+      {printers.map((printer) => <Printer key={printer.url} printer={printer} remove={(url)=>remove(url)} />)}
     </Row>
     </>
   )

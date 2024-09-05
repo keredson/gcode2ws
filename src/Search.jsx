@@ -29,6 +29,11 @@ export function Search(props) {
     set_ip_and_port('')
   }
 
+  function dismiss() {
+    set_dismissed(true)
+    set_search_progress(null)
+  }
+
   const search_progress_ref = useRef(null)
   useEffect(() => {
     search_progress_ref.current = search_progress;
@@ -52,7 +57,9 @@ export function Search(props) {
   if (search_progress!=null) search_button = null;
 
   function add_printer(ws, url) {
-    wait(2500).then(()=>props.add_printer(ws, url))
+    console.log('add_printer...', ws, url)
+    //wait(2500).then(()=>props.add_printer(ws, url))
+    props.add_printer(ws, url)
     set_adding_ip(false)
     set_found_some(found_some_ref.current+1)
   }
@@ -69,12 +76,14 @@ export function Search(props) {
         return new Promise((resolve, reject) => {
           const ip = [a,b,c,d].join('.')
           const url = 'ws://'+ ip +':81'
-          //console.log('connecting', url)
 
           const ws = new WebSocket(url);
 
+          console.log('search connected', url, ws)
+
           const timeoutId = setTimeout(() => {
-            ws.close(); // Close the WebSocket connection
+            console.log('close timeout', ws)
+            ws.close()
             reject(new Error('WebSocket connection timed out'));
           }, 10000);
 
@@ -127,7 +136,7 @@ export function Search(props) {
 
   if (props.printer_count && search_progress==253) {
     actions.push(
-      <ActionWithText key='dismiss' onActionClick={()=>set_dismissed(true)} icon={<CloseCircleOutlined />}>
+      <ActionWithText key='dismiss' onActionClick={()=>dismiss()} icon={<CloseCircleOutlined />}>
         Dismiss
       </ActionWithText>
     )
