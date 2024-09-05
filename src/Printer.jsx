@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip, Spin, Alert } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined } from '@ant-design/icons';
+import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 const RUNNING_COMMAND = {} // {url: {cmd, resolve_ok, reject_ok}}
@@ -241,13 +241,21 @@ export function Printer(props) {
     )
   }
 
-  if (!(progress==null || progress_percent==100) && !cancelled) {
+  if (progress!=null && progress_percent<100 && !cancelled && !request_cancel) {
     actions.push(
       <Popconfirm key='cancel' description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
         <ActionWithText style={{color:'#ff7875'}} icon={request_print ? <Spin/> : <StopOutlined />}>
           Cancel
         </ActionWithText>
       </Popconfirm>
+    )
+  }
+
+  if (request_cancel) {
+    actions.push(
+      <ActionWithText key='cancelling' onActionClick={()=>{}} icon={<LoadingOutlined spin />}>
+        Cancelling
+      </ActionWithText>
     )
   }
 
