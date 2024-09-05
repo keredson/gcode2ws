@@ -1,10 +1,12 @@
 # G-Code to Websocket
 
-This webapp lets you stream G-Code (created by Cura, Orca Slicer, etc.) to your websocket-enabled printer(s).
+This webapp lets you stream G-Code (created by [Cura](https://ultimaker.com/software/ultimaker-cura/), [Orca Slicer](https://github.com/SoftFever/OrcaSlicer), etc.) to your websocket-enabled printer(s).
+
+**[TRY IT HERE!](http://gcode2ws.kered.org/)**
 
 Known compatible printers:
-- Monoprice Select Mini 3D Printer V2
-- Malyan M200 3D Printer
+- [Monoprice Select Mini 3D Printer V2](https://www.monoprice.com/product?p_id=34620)
+- [Malyan M200 3D Printer](https://malyansys.com/product/m200-v1/)
 
 ## FAQ
 
