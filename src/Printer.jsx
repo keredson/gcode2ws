@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip, Spin, Alert } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined } from '@ant-design/icons';
+import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined, ClearOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 import {actionClicks, ActionWithText } from './AntdActionUtils'
@@ -188,16 +188,6 @@ export function Printer(props) {
 
   }
 
-  const description_title = (
-    <Flex align='center' justify='center' gap='small'>
-      {thumbnail ? <img src={'data:image/png;base64,'+thumbnail} style={{verticalAlign:'middle', maxHeight:'32pt'}}/> : null}
-      Model
-      <Tooltip title="Remove Model" >
-        <Button type="text" icon={<DeleteOutlined />} onClick={() => set_file(null)} />
-      </Tooltip>
-    </Flex>
-  )
-
   let connection_status = null;
   if (ws===undefined) connection_status = null
   else if (!ws) connection_status = <Spin size='small' style={{verticalAlign:'text-top', paddingLeft:'2pt'}}/>
@@ -236,6 +226,14 @@ export function Printer(props) {
     actions.push(
       <ActionWithText key='print' style={{color:'rgb(22, 119, 255)'}} onActionClick={()=>print(cmds)} icon={request_print ? <Spin/> : <PrinterOutlined />}>
         Print {print_exception || progress_percent==100 ? 'Again' : null}
+      </ActionWithText>
+    )
+  }
+
+  if (file && ws && (progress==null || print_exception || progress_percent==100)) {
+    actions.push(
+      <ActionWithText key='clear' style={{color:'#ff7875'}} onActionClick={()=>set_file(null)} icon={<ClearOutlined />}>
+        Clear
       </ActionWithText>
     )
   }
@@ -297,11 +295,11 @@ export function Printer(props) {
 
           {ws===undefined ? <Alert message="Printer Disconnected" type="error" showIcon /> : null}
   
-          <Descriptions title={file ? description_title : null} column={{ xs: 1, sm: 1, md: 2, lg:2}} size='small' style={{marginTop:'.5em'}}>
-            {file?.name ? <Descriptions.Item label="File" span={2}>
+          <Descriptions column={{ xs: 1, sm: 1, md: 2, lg:2}} size='small' style={{marginTop:'.5em'}}>
+            {file?.name ? <Descriptions.Item label="File">
               {file?.name}
             </Descriptions.Item> : null}
-            {info?.['TARGET_MACHINE.NAME'] ? <Descriptions.Item label="Target" span={2}>
+            {info?.['TARGET_MACHINE.NAME'] ? <Descriptions.Item label="Target">
               {info?.['TARGET_MACHINE.NAME']}
             </Descriptions.Item> : null}
             {info?.['Filament used'] ? <Descriptions.Item label="Filament">
@@ -330,6 +328,9 @@ export function Printer(props) {
               &nbsp;/&nbsp;
               <Tooltip title="Target">{(Math.round((bed_temp_setpoint||0)*10)/10).toLocaleString()}&deg;</Tooltip> C
             </Descriptions.Item>}
+            {thumbnail ? <Descriptions.Item label="Preview">
+              <div>{thumbnail ? <img src={'data:image/png;base64,'+thumbnail} style={{verticalAlign:'middle', maxHeight:'32pt'}}/> : null}</div>
+            </Descriptions.Item> : null}
           </Descriptions>
 
           {progress==null ? null : <Progress percent={progress_percent} status={print_exception ? 'exception' : null} />}
