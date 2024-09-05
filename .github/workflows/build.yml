@@ -33,9 +33,8 @@ jobs:
         run:  yarn install
       - name: Build App
         run:  yarn build
-        with:
-          source: ./dist/
-          destination: ./_site
+      - name: Rename App
+        run:  mv dist _site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
 
