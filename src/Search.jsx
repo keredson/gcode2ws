@@ -148,7 +148,7 @@ export function Search(props) {
           {search_in_progress || search_done ? null : (
             <>
               <div>
-                Enter an ip/port (<code style={{fontSize:'smaller'}}>192.168.0.57[:81]</code>)
+                Enter an ip/port (<code style={{fontSize:'smaller'}}>192.168.0.57[:81]</code>)&nbsp;
                 {HTTPS ? null : <span>or subnet (<code style={{fontSize:'smaller'}}>192.168.0.x</code>) to search</span>}.
               </div>
               <Input.Search 
