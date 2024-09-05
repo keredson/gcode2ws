@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { Card, Col, Row } from 'antd';
+import { Row, Typography } from 'antd';
 import 'github-fork-ribbon-css/gh-fork-ribbon.css'
 
 import { Search } from './Search'
 import { Printer } from './Printer'
+
+const { Title } = Typography;
 
 
 function App() {
@@ -37,6 +39,7 @@ function App() {
   return (
     <>
       <a class="github-fork-ribbon" target='_blank' href="https://github.com/keredson/gcode2ws" data-ribbon="Fork me on GitHub" title="Fork me on GitHub">Fork me on GitHub</a>
+      <Title style={{textAlign:'center'}}>Send G-Code</Title>
       <Row gutter={[16, 16]}>
         <Search add_printer={(ip, port)=>add_printer(ip, port)} />
       {printers.map((printer, i) => <Printer key={i} printer={printer} close={()=>remove(i)} />)}
