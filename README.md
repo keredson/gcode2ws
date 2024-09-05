@@ -12,7 +12,7 @@ Known compatible printers:
 
 ### These printers have a built-in webapp, so why use this?
 
-The built-in webapps (even with "high speed" enabled) can only upload your file at ~10-20kB/s.  The upload often fails, and when it doesn't it usually takes half as long as the estimated print time! 🤦
+The built-in webapp *even with "high speed" enabled* can only upload your file at ~10-20kB/s.  The upload often fails, and when it doesn't it usually takes half as long as the estimated print time! 🤦
 
 Because this project streams the G-Code, prints start instantly.  (You don't even need an SD card.)
 
@@ -22,9 +22,9 @@ The printer's handling of telnet sessions is unreliable (even with good WiFi).  
 
 ### Isn't the WiFi on on these printers terrible?
 
-Yes it is!  Fortunately (from my experience_ if it's close enough to your router or a repeater (like in the same room), it's good enough.
+Yes it is!  Fortunately my experience is if it's close enough to your router or a repeater (like in the same room), it's good enough.
 
-### Is my model or G-Code uploaded to the cloud?
+### Is my model or G-Code ever uploaded to the cloud?
 
 No, neither ever leaves your network.  The whole app is static HTML + Javascript, hosted by Github, and collects no data.
 
