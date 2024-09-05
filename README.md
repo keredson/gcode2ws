@@ -1,6 +1,6 @@
 # G-Code to Websocket
 
-This webapp lets you stream G-Code (created by Cura, Orca Slicer, etc.) to your websocket-enabled printer.
+This webapp lets you stream G-Code (created by Cura, Orca Slicer, etc.) to your websocket-enabled printer(s).
 
 Known compatible printers:
 - Monoprice Select Mini 3D Printer V2
@@ -25,6 +25,14 @@ Yes it is!  Fortunately (from my experience_ if it's close enough to your router
 ### Is my model or G-Code uploaded to the cloud?
 
 No, neither ever leaves your network.  The whole app is static HTML + Javascript, hosted by Github, and collects no data.
+
+## Screenshots
+
+![image](public/search.png) ![image](public/searching.png) ![image](public/printer.png) 
+
+## Limitations
+
+Because it's streaming G-Code from your browser, you have to keep your computer on and the site open for the duration of the print.
 
 ## Links
 - [mpselectmini.com](https://www.mpselectmini.com/)
