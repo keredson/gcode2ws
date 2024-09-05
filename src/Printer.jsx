@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip, Spin, Alert } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined } from '@ant-design/icons';
+import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 const RUNNING_COMMAND = {} // {url: {cmd, resolve_ok, reject_ok}}
@@ -194,13 +194,15 @@ export function Printer(props) {
     <Flex align='center' justify='center' gap='small'>
       {thumbnail ? <img src={'data:image/png;base64,'+thumbnail} style={{verticalAlign:'middle', maxHeight:'32pt'}}/> : null}
       Model
-      <Button type="text" icon={<DeleteOutlined />} onClick={() => set_file(null)} />
+      <Tooltip title="Remove Model" >
+        <Button type="text" icon={<DeleteOutlined />} onClick={() => set_file(null)} />
+      </Tooltip>
     </Flex>
   )
 
   let connection_status = null;
   if (ws===undefined) connection_status = null
-  else if (!ws) connection_status = <Spin size='small'/>
+  else if (!ws) connection_status = <Spin size='small' style={{verticalAlign:'text-top', paddingLeft:'2pt'}}/>
   else connection_status = <a href={'http://'+props.printer.ip} target='_blank'><LinkOutlined /></a>
 
   const print_description = (
@@ -220,6 +222,16 @@ export function Printer(props) {
   }
 
   const actions = [];
+
+  async function home() {
+    await send_cmd('G28')
+  }
+
+  if (ws) {
+    actions.push(
+      <Tooltip onActionClick={()=>home()} title="Home"><HomeOutlined /></Tooltip>
+    )
+  }
 
   if (file && ws && (progress==null || print_exception || progress_percent==100)) {
     actions.push(
@@ -262,9 +274,9 @@ export function Printer(props) {
   }
 
   actions.push(
-    <ActionWithText key='close' onActionClick={()=>close_action()} icon={<CloseOutlined />}>
-      Disconnect
-    </ActionWithText>
+    <Tooltip title="Disconnect" key='close' onActionClick={()=>close_action()}>
+      <CloseOutlined />
+    </Tooltip>
   )
 
 
