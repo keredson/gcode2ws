@@ -3,6 +3,8 @@ import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconf
 import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
+import {actionClicks, ActionWithText } from './AntdActionUtils'
+
 const RUNNING_COMMAND = {} // {url: {cmd, resolve_ok, reject_ok}}
 
 export function Printer(props) {
@@ -289,7 +291,7 @@ export function Printer(props) {
 
 
   return (
-    <Col xs={24} sm={12} md={12} lg={8}>
+    <Col xs={24} sm={24} md={24} lg={24}>
       <Card actions={actionClicks(actions)}>
 
         <Flex vertical align='center' gap='small'>
@@ -396,13 +398,3 @@ function parse_status(str) {
 }
 
 
-function actionClicks(actions) {
-  const action_style = { display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 8, }
-  return actions.map(action => (
-    <span style={action_style} onClick={(e)=>action?.props?.onActionClick(e)}>{action}</span>
-  ))
-}
-
-function ActionWithText(props) {
-  return <Space {...props} size={4} className='anticon'>{props.icon}{props.children}</Space>
-}

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Button, Flex, Space, Input, Progress } from 'antd';
 import {
-  SearchOutlined, PlusOutlined, ClusterOutlined, ApiOutlined, LinkOutlined, CloseCircleOutlined, StopOutlined, PrinterTwoTone
+  SearchOutlined, PlusOutlined, ClusterOutlined, ApiOutlined, LinkOutlined, CloseCircleOutlined, StopOutlined, PrinterTwoTone, InfoCircleOutlined
 } from '@ant-design/icons';
+
+import {actionClicks, ActionWithText } from './AntdActionUtils'
 
 
 export function Search(props) {
@@ -11,6 +13,7 @@ export function Search(props) {
   const [search_progress, set_search_progress] = useState(null)
   const [local_ip, set_local_ip] = useState('')
   const [ip_and_port, set_ip_and_port] = useState('')
+  const [dismissed, set_dismissed] = useState(false)
 
   function reset() {
     set_adding_ip(false)
@@ -88,7 +91,6 @@ export function Search(props) {
     } finally {
       console.log('search finally')
       set_search_progress(null)
-      setTimeout(()=>reset(), 10000)
     }
   }
 
@@ -106,9 +108,31 @@ export function Search(props) {
     }} style={{fontSize:'smaller', color:'#333', wordBreak:'none'}}>{subnet}</a>
   ))
 
+  const actions = [];
+
+  if (search_progress==253) {
+    actions.push(
+      <ActionWithText key='search' onActionClick={()=>reset()} icon={<SearchOutlined />}>
+        Search Again
+      </ActionWithText>
+    )
+  }
+
+  if (props.printer_count && search_progress==253) {
+    actions.push(
+      <ActionWithText key='dismiss' onActionClick={()=>set_dismissed(true)} icon={<CloseCircleOutlined />}>
+        Dismiss
+      </ActionWithText>
+    )
+  }
+
+
+  if (dismissed && props.printer_count>0) return
+
+
   return (
-    <Col xs={24} sm={12} md={8} lg={6}>
-      <Card style={{
+    <Col xs={24} sm={24} md={24} lg={24}>
+      <Card actions={actionClicks(actions)} style={{
         border: '1px dashed silver', // Dashed outline
         //backgroundColor: 'transparent', // Transparent background
         boxShadow: 'none', // Remove any shadow if you want a flat look
@@ -140,11 +164,13 @@ export function Search(props) {
             </>
           ) : (
             <>
-              Searching {ip_and_port.toLowerCase()}...
+              {search_progress<253 ? 'Searching '+ip_and_port.toLowerCase()+'...' : null}
+              {search_progress==253 && props.printer_count==0 ? <div>
+                Sorry, no printers found.  Are they on? Did you select the right subnet? <a href='https://nordvpn.com/blog/what-is-a-subnet-mask/#:~:text=you%E2%80%99re%20connected%20to.-,How%20do%20you%20find%20the%20subnet%20mask%3F,-Follow%20the%20guides' target='_blank'><InfoCircleOutlined /></a>
+              </div> : null}
               <Progress type="circle" percent={Math.round(100*search_progress/254)} />
             </>
           )}
-
 
         </Flex>
       </Card>

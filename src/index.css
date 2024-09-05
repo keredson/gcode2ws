@@ -1,5 +1,7 @@
 #root {
   padding:1em;
+  max-width: 500pt;
+  margin: 0 auto;
 }
 :root {
   font-synthesis: none;
