@@ -103,7 +103,7 @@ export function Search(props) {
       e.preventDefault()
       set_ip_and_port(subnet)
       search(subnet)
-    }} style={{fontSize:'smaller', color:'#a0a0a0', wordBreak:'none'}}>{subnet}</a>
+    }} style={{fontSize:'smaller', color:'#333', wordBreak:'none'}}>{subnet}</a>
   ))
 
   return (

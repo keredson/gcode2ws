@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip, Spin, Alert } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined } from '@ant-design/icons';
+import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 const RUNNING_COMMAND = {} // {url: {cmd, resolve_ok, reject_ok}}
@@ -49,6 +49,10 @@ export function Printer(props) {
     }
     ws.onclose = () => {
       set_ws(undefined)
+      set_nozzle_temp(null)
+      set_nozzle_temp_setpoint(null)
+      set_bed_temp(null)
+      set_bed_temp_setpoint(null)
     }
     ws.onmessage = (event) => {
       console.log('<=', event.data)
@@ -210,9 +214,63 @@ export function Printer(props) {
 
   const progress_percent = progress== null || !cmds?.length ? null : Math.round(100*progress/cmds?.length)
 
+  function close_action() {
+    ws?.close()
+    props.close()
+  }
+
+  const actions = [];
+
+  if (file && ws && (progress==null || print_exception || progress_percent==100)) {
+    actions.push(
+      <ActionWithText key='print' style={{color:'rgb(22, 119, 255)'}} onActionClick={()=>print(cmds)} icon={request_print ? <Spin/> : <PrinterOutlined />}>
+        Print {print_exception || progress_percent==100 ? 'Again' : null}
+      </ActionWithText>
+    )
+  }
+
+  if (!(progress==null || progress_percent==100) && !cancelled) {
+    actions.push(
+      <Popconfirm key='cancel' description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
+        <ActionWithText style={{color:'#ff7875'}} icon={request_print ? <Spin/> : <StopOutlined />}>
+          Cancel
+        </ActionWithText>
+      </Popconfirm>
+    )
+  }
+
+  if (ws===undefined) {
+    actions.push(
+      <ActionWithText key='reconnect' style={{color:'#ff7875'}} onActionClick={()=>connect()} icon={request_print ? <Spin/> : <WarningOutlined />}>
+        Reconnect
+      </ActionWithText>
+    )
+  }
+
+  const hidden_upload_ref = useRef(null);
+  const hidden_upload = (
+    <input type='file' ref={hidden_upload_ref} onChange={e => set_file(e.target.files[0]) || (e.target.value='')} beforeUpload={()=>false} style={{display:'none'}}/>
+  )
+
+  if (!file) {
+    
+    actions.push(
+      <ActionWithText key='upload' onActionClick={()=>console.log('hidden_upload_ref.current', hidden_upload, hidden_upload_ref.current) || hidden_upload_ref.current.click()} icon={request_print ? <Spin/> : <UploadOutlined />}>
+        Upload
+      </ActionWithText>
+    )
+  }
+
+  actions.push(
+    <ActionWithText key='close' onActionClick={()=>close_action()} icon={<CloseOutlined />}>
+      Disconnect
+    </ActionWithText>
+  )
+
+
   return (
     <Col xs={24} sm={12} md={12} lg={8}>
-      <Card>
+      <Card actions={actionClicks(actions)}>
 
         <Flex vertical align='center' gap='small'>
 
@@ -257,31 +315,7 @@ export function Printer(props) {
 
           {progress==null ? null : <Progress percent={progress_percent} status={print_exception ? 'exception' : null} />}
 
-          <Space>
-
-            {file ? null : <Upload maxCount={1} onChange={info => handle_gcode(info)} beforeUpload={()=>false}>
-              <Button icon={<UploadOutlined />}>GCode</Button>
-            </Upload>}
-            {ws===undefined ? <Button icon={<WarningOutlined />} onClick={()=>connect()} danger>Reconnect</Button> : null}
-
-            {file && ws && progress==null ? <Button type="primary" icon={<PrinterOutlined />} onClick={()=>print(cmds)} loading={request_print}>
-              Print
-            </Button> : null}
-
-            {progress==null || progress_percent==100 ? null : (
-              <Popconfirm description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
-              {cancelled ? null : <Button type="" icon={<StopOutlined />} loading={request_cancel} danger>
-                Cancel
-              </Button>}
-              </Popconfirm>
-            )}
-
-            {print_exception || progress_percent==100 ? <Button icon={<PrinterOutlined />} onClick={()=>print(cmds)} loading={request_print}>
-              Print Again
-            </Button> : null}
-
-          </Space>
-
+          {hidden_upload}
 
         </Flex>
       </Card>
@@ -339,4 +373,16 @@ function parse_status(str) {
   });
   result.ok = str.startsWith('ok')
   return result;
+}
+
+
+function actionClicks(actions) {
+  const action_style = { display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 8, }
+  return actions.map(action => (
+    <span style={action_style} onClick={(e)=>action?.props?.onActionClick(e)}>{action}</span>
+  ))
+}
+
+function ActionWithText(props) {
+  return <Space {...props} size={4} className='anticon'>{props.icon}{props.children}</Space>
 }
