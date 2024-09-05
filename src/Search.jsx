@@ -14,6 +14,12 @@ export function Search(props) {
   const [local_ip, set_local_ip] = useState('')
   const [ip_and_port, set_ip_and_port] = useState('')
   const [dismissed, set_dismissed] = useState(false)
+  const [found_some, set_found_some] = useState(0)
+
+  const found_some_ref = useRef(found_some);
+  useEffect(() => {
+    found_some_ref.current = found_some;
+  }, [found_some]);
 
   function reset() {
     set_adding_ip(false)
@@ -49,10 +55,12 @@ export function Search(props) {
     if (port) port = parseInt(port)
     props.add_printer(ip, port)
     set_adding_ip(false)
+    set_found_some(found_some_ref.current+1)
   }
 
   async function search(ip_and_port) {
     set_search_progress(0)
+    set_found_some(0)
     const [a,b,c,d] = ip_and_port.split('.')
     console.log('[a,b,c,d]', [a,b,c,d])
     const to_search = Array.from({ length: 253 }, (_, i) => i + 2);
@@ -165,7 +173,7 @@ export function Search(props) {
           ) : (
             <>
               {search_progress<253 ? 'Searching '+ip_and_port.toLowerCase()+'...' : null}
-              {search_progress==253 && props.printer_count==0 ? <div>
+              {search_progress==253 && found_some==0 ? <div>
                 Sorry, no printers found.  Are they on? Did you select the right subnet? <a href='https://nordvpn.com/blog/what-is-a-subnet-mask/#:~:text=you%E2%80%99re%20connected%20to.-,How%20do%20you%20find%20the%20subnet%20mask%3F,-Follow%20the%20guides' target='_blank'><InfoCircleOutlined /></a>
               </div> : null}
               <Progress type="circle" percent={Math.round(100*search_progress/254)} />
