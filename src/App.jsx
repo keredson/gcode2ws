@@ -36,7 +36,7 @@ function App() {
 
   return (
     <>
-      <a class="github-fork-ribbon" target='_blank' href="https://github.com/keredson/gcode2ws" data-ribbon="Fork me on GitHub" title="Fork me on GitHub">Fork me on GitHub</a>
+      <a className="github-fork-ribbon" target='_blank' href="https://github.com/keredson/gcode2ws" data-ribbon="Fork me on GitHub" title="Fork me on GitHub">Fork me on GitHub</a>
       <Title style={{textAlign:'center'}}>Send G-Code</Title>
       <Row gutter={[16, 16]}>
         <Search add_printer={(ws, url)=>add_printer(ws, url)} printer_count={printers.length} />

@@ -13,43 +13,32 @@ const HTTPS = window.location.protocol=='https:'
 export function Search(props) {
 
   const [search_progress, set_search_progress] = useState(null)
-  const [local_ip, set_local_ip] = useState('')
   const [ip_and_port, set_ip_and_port] = useState('')
   const [dismissed, set_dismissed] = useState(false)
   const [found_some, set_found_some] = useState(0)
 
   const search_in_progress = !dismissed && search_progress!=null && search_progress<253
-  const search_done = !search_in_progress && search_progress==253
+  const search_done = search_progress==253
 
   const found_some_ref = useRef(found_some);
   useEffect(() => {
     found_some_ref.current = found_some;
   }, [found_some]);
 
-  function reset() {
+  function search_again() {
     set_search_progress(null)
-    set_local_ip('')
     set_ip_and_port('')
+    set_dismissed(false)
   }
 
   function dismiss() {
     set_dismissed(true)
-    set_search_progress(null)
   }
 
   const search_progress_ref = useRef(null)
   useEffect(() => {
     search_progress_ref.current = search_progress;
   }, [search_progress]);
-
-  useEffect(()=>{
-    getLocalIP().then((ip) => {
-      console.log("Local IP Address:", ip);
-      set_local_ip(ip)
-    }).catch((error) => {
-      console.error("Error:", error.message);
-    });
-  }, [])
 
   const full_ip = ip_and_port.match(ipRegex)
   const subnet = !HTTPS && ip_and_port.match(/([0-9]{1,3}\.){3}[xX]{1,3}/)
@@ -69,6 +58,7 @@ export function Search(props) {
   async function search(ip_and_port) {
     set_search_progress(0)
     set_found_some(0)
+    set_dismissed(false)
     const [a,b,c,d] = ip_and_port.split('.')
     console.log('[a,b,c,d]', [a,b,c,d])
     const to_search = Array.from({ length: 253 }, (_, i) => i + 2);
@@ -126,13 +116,13 @@ export function Search(props) {
 
   if (search_done) {
     actions.push(
-      <ActionWithText key='search' onActionClick={()=>reset()} icon={<SearchOutlined />}>
+      <ActionWithText key='search' onActionClick={()=>search_again()} icon={<SearchOutlined />}>
         Search Again
       </ActionWithText>
     )
   }
 
-  if (props.printer_count && search_done) {
+  if (props.printer_count) {
     actions.push(
       <ActionWithText key='dismiss' onActionClick={()=>dismiss()} icon={<CloseCircleOutlined />}>
         Dismiss
@@ -170,7 +160,6 @@ export function Search(props) {
                 loading={search_in_progress}
                 disabled={search_in_progress}
                 enterButton={search_button} 
-                defaultValue={local_ip}
                 onChange={(e)=>console.log(e) || set_ip_and_port(e.target.value)}
                 onSearch={(value)=>search_or_add_printer(value)}
               />
@@ -188,7 +177,7 @@ export function Search(props) {
               {search_in_progress ? 'Searching '+ip_and_port.toLowerCase()+'...' : null}
             </>
           ) : null}
-          { search_progress ? (
+          { search_progress || search_done ? (
             <Progress type="circle" percent={Math.round(100*search_progress/253)} />
           ) : null}
           { search_done ? (
@@ -207,35 +196,7 @@ export function Search(props) {
   )
 }
 
-// doesn't work for my browser, which returns a 'XXX.local' hostname
 const ipRegex = /([0-9]{1,3}\.){3}[0-9]{1,3}/;
-async function getLocalIP() {
-  return new Promise((resolve, reject) => {
-    const pc = new RTCPeerConnection();
-    const noop = () => {};
-
-    pc.createDataChannel(""); // Create a data channel
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        const candidate = event.candidate.candidate;
-        console.log('candidate', candidate)
-        const ipAddress = candidate.match(ipRegex)[0];
-        resolve(ipAddress);
-        pc.onicecandidate = noop;
-      }
-    };
-
-    pc.createOffer()
-      .then((offer) => pc.setLocalDescription(offer))
-      .catch((error) => reject(error));
-
-    // Fallback in case we don't get an IP address
-    setTimeout(() => {
-      reject(new Error("Could not retrieve IP address"));
-    }, 1000);
-  });
-}
 
 function JoinWithComma({ components }) {
   return components.reduce((acc, component, index) => {
