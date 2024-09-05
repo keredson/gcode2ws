@@ -1658,6 +1658,11 @@ get-symbol-description@^1.0.2:
     es-errors "^1.3.0"
     get-intrinsic "^1.2.4"
 
+github-fork-ribbon-css@^0.2.3:
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/github-fork-ribbon-css/-/github-fork-ribbon-css-0.2.3.tgz#bca2bc1987b6ca138a5619be4396d1819732a875"
+  integrity sha512-cmGBV4sivRwmnteSOkqMjN2cnP5/J1SU5aDCVYsBWHmDokZ/JjwGEkduCxY9IULHdCPpw1WSk5Cy8N1LF6jOEw==
+
 glob-parent@^6.0.2:
   version "6.0.2"
   resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-6.0.2.tgz#6d237d99083950c79290f24c7642a3de9a28f9e3"

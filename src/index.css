@@ -30,3 +30,5 @@
 .ant-descriptions-header {
   margin-bottom: 0 !important;
 }
+
+.github-fork-ribbon:before { background-color: #333; }

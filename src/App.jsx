@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Row } from 'antd';
+import 'github-fork-ribbon-css/gh-fork-ribbon.css'
 
 import { Search } from './Search'
 import { Printer } from './Printer'
@@ -34,10 +35,13 @@ function App() {
   }
 
   return (
-    <Row gutter={[16, 16]}>
+    <>
+      <a class="github-fork-ribbon" target='_blank' href="https://github.com/keredson/gcode2ws" data-ribbon="Fork me on GitHub" title="Fork me on GitHub">Fork me on GitHub</a>
+      <Row gutter={[16, 16]}>
+        <Search add_printer={(ip, port)=>add_printer(ip, port)} />
       {printers.map((printer, i) => <Printer key={i} printer={printer} close={()=>remove(i)} />)}
-      <Search add_printer={(ip, port)=>add_printer(ip, port)} />
     </Row>
+    </>
   )
 }
 
