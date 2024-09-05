@@ -5,9 +5,7 @@ import {
 } from '@ant-design/icons';
 
 import {actionClicks, ActionWithText } from './AntdActionUtils'
-import {wait} from './util'
-
-const HTTPS = window.location.protocol=='https:'
+import {HTTPS} from './util'
 
 
 export function Search(props) {

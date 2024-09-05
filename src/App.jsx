@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { Row, Typography } from 'antd';
 import 'github-fork-ribbon-css/gh-fork-ribbon.css'
+import {
+  InfoCircleOutlined
+} from '@ant-design/icons';
 
 import { Search } from './Search'
 import { Printer } from './Printer'
+import {HTTPS} from './util'
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 
 function App() {
@@ -40,8 +44,16 @@ function App() {
       <Title style={{textAlign:'center'}}>Send G-Code</Title>
       <Row gutter={[16, 16]}>
         <Search add_printer={(ws, url)=>add_printer(ws, url)} printer_count={printers.length} />
-      {printers.map((printer) => <Printer key={printer.url} printer={printer} remove={(url)=>remove(url)} />)}
-    </Row>
+        {printers.map((printer) => <Printer key={printer.url} printer={printer} remove={(url)=>remove(url)} />)}
+      </Row>
+      {HTTPS ? null : (
+        <Text type='secondary'
+          style={{fontSize:'smaller', textAlign:'center', display:'block', marginTop:'1em'}}
+          size="small"
+        >
+          Why does my browser say this site is not secure? <a href='https://github.com/keredson/gcode2ws/blob/main/SECURITY.md' target='_blank'><InfoCircleOutlined /></a>
+        </Text>
+      )}
     </>
   )
 }
