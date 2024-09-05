@@ -5,6 +5,7 @@ import {
 } from '@ant-design/icons';
 
 import {actionClicks, ActionWithText } from './AntdActionUtils'
+import {wait} from './util'
 
 
 export function Search(props) {
@@ -50,10 +51,8 @@ export function Search(props) {
   if (subnet) search_button = <SearchOutlined />
   if (search_progress!=null) search_button = null;
 
-  function add_printer(ip_and_port) {
-    let [ip, port] = ip_and_port.split(':')
-    if (port) port = parseInt(port)
-    props.add_printer(ip, port)
+  function add_printer(ws, url) {
+    wait(2500).then(()=>props.add_printer(ws, url))
     set_adding_ip(false)
     set_found_some(found_some_ref.current+1)
   }
@@ -73,23 +72,23 @@ export function Search(props) {
           //console.log('connecting', url)
 
           const ws = new WebSocket(url);
-          ws.onopen = () => {
-            ws.close()
-            resolve(ip)
-            console.log('found', ip)
-            add_printer(ip)
-          }
-          ws.onclose = () => {
-            set_search_progress(search_progress_ref.current+1)
-            resolve()
-            //console.log('closed', ip)
-          }
 
           const timeoutId = setTimeout(() => {
             ws.close(); // Close the WebSocket connection
             reject(new Error('WebSocket connection timed out'));
           }, 10000);
-      
+
+          ws.onopen = () => {
+            clearTimeout(timeoutId);
+            set_search_progress(search_progress_ref.current+1)
+            resolve(ip)
+            console.log('found', ip)
+            add_printer(ws, url)
+          }
+          ws.onclose = () => {
+            set_search_progress(search_progress_ref.current+1)
+            resolve()
+          }      
 
         })
       }))

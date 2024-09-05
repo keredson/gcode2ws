@@ -4,6 +4,7 @@ import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOu
 import pretty from 'pretty-time'
 
 import {actionClicks, ActionWithText } from './AntdActionUtils'
+import {wait} from './util'
 
 const RUNNING_COMMAND = {} // {url: {cmd, resolve_ok, reject_ok}}
 
@@ -23,7 +24,7 @@ export function Printer(props) {
   const [bed_temp, set_bed_temp] = useState(null)
   const [bed_temp_setpoint, set_bed_temp_setpoint] = useState(null)
   const [print_started_at, set_print_started_at] = useState(null)
-  const [ws, set_ws] = useState(null)
+  const [ws, set_ws] = useState(props.printer.ws)
   
   const index = 1
 
@@ -37,13 +38,11 @@ export function Printer(props) {
     ws_ref.current = ws;
   }, [ws]);
 
-  const url = 'ws://'+props.printer.ip+':'+props.printer.port.toString()
-
-  async function connect() {
-    set_ws(null)
+  async function connect(first_time) {
+    if (!first_time) set_ws(null)
     await wait(1000)
-    console.log('connecting', url)
-    const ws = new WebSocket(url);
+    console.log('connecting', props.printer.url)
+    const ws = first_time ? ws_ref.current : new WebSocket(props.printer.url);
     ws.onopen = async () => {
       console.log('connected')
       await wait(2500);
@@ -63,24 +62,24 @@ export function Printer(props) {
       if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
       if (state.B) set_bed_temp(state.B);
       if (state.Bs) set_bed_temp_setpoint(state.Bs);
-      if (RUNNING_COMMAND[url].resolve_ok && state.ok) {
-        RUNNING_COMMAND[url].resolve_ok();
-        RUNNING_COMMAND[url] = {cmd:null, resolve_ok:null, reject_ok:null}
+      if (RUNNING_COMMAND[props.printer.url].resolve_ok && state.ok) {
+        RUNNING_COMMAND[props.printer.url].resolve_ok();
+        RUNNING_COMMAND[props.printer.url] = {cmd:null, resolve_ok:null, reject_ok:null}
       }
     };
     ws.onerror = (error) => {
-      RUNNING_COMMAND[url]?.reject_ok(error);
-      RUNNING_COMMAND[url] = {cmd:null, resolve_ok:null, reject_ok:null}
+      RUNNING_COMMAND[props.printer.url]?.reject_ok(error);
+      RUNNING_COMMAND[props.printer.url] = {cmd:null, resolve_ok:null, reject_ok:null}
     };
   }
 
   useEffect(() => {
-    connect()
+    connect(true)
   }, []);
 
   function send_cmd(cmd) {
     return new Promise((resolve_ok, reject_ok) => {
-      RUNNING_COMMAND[url] = {cmd, resolve_ok, reject_ok}
+      RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
       console.log('=>', cmd)
       ws_ref.current.send(cmd);
     });
@@ -152,7 +151,6 @@ export function Printer(props) {
   async function print(cmds) {
     set_request_print(true)
     set_print_exception(false)
-    const url = 'ws://'+props.printer.ip+':'+props.printer.port.toString()
 
     while (!ws_ref.current) await wait(1000)
 
@@ -211,7 +209,7 @@ export function Printer(props) {
     <Space size="small">
       <PrinterTwoTone />
       <span style={{ color: 'gray', fontWeight: 'normal' }}>
-        @ ws://{props.printer.ip}:{props.printer.port} {connection_status}
+        @ {props.printer.url} {connection_status}
       </span>
     </Space>
   )
@@ -373,10 +371,6 @@ const CANCEL_CMDS = [
   'M107', // Turn off part fan
   'M84 S1', // Turn off stepper motors.    
 ]
-
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 function parse_status(str) {
   // like: ok N0 P15 B15 T:25.2 /0.0 B:23.1 /0.0 T0:25.2 /0.0 @:0 B@:0
