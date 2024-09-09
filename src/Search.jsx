@@ -170,13 +170,13 @@ export function Search(props) {
               </div>
             </>
           )}
+          { search_progress || search_done ? (
+            <Progress type="circle" percent={Math.round(100*search_progress/253)} status={search_done && !found_some ? "exception" : null} />
+          ) : null}
           { search_in_progress && !search_done ? (
             <>
               {search_in_progress ? 'Searching '+ip_and_port.toLowerCase()+'...' : null}
             </>
-          ) : null}
-          { search_progress || search_done ? (
-            <Progress type="circle" percent={Math.round(100*search_progress/253)} />
           ) : null}
           { search_done ? (
             <>
