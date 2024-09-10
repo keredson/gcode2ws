@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Col, Descriptions, Space, Flex, Progress, Popconfirm, Tooltip, Spin, Alert, Collapse } from 'antd';
-import { PrinterTwoTone, UploadOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined, ClearOutlined, PlayCircleOutlined, PauseCircleOutlined, ArrowRightOutlined, SendOutlined, CodeOutlined } from '@ant-design/icons';
+import { 
+  PrinterTwoTone, UploadOutlined, PrinterOutlined, StopOutlined, LinkOutlined, 
+  WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined, ClearOutlined, 
+  PlayCircleOutlined, PauseCircleOutlined, ArrowRightOutlined, CheckOutlined, 
+  CodeOutlined
+} from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 import {actionClicks, ActionWithText } from './AntdActionUtils'
@@ -95,7 +100,7 @@ export function Printer(props) {
   }, []);
 
   function send_cmd(cmd) {
-    if (RUNNING_COMMAND[props.printer.url]) throw Exception('command in progress')
+    //if (RUNNING_COMMAND[props.printer.url]) throw Exception('command in progress')
     return new Promise((resolve_ok, reject_ok) => {
       RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
       console.log(cmd, '=>', ws_ref.current)
@@ -156,7 +161,7 @@ export function Printer(props) {
   }, [file])
 
   async function inquire() {
-    while (!ws_ref.current) await wait(1000)
+    //while (!ws_ref.current) await wait(1000)
     //await send_cmd('M105')
   }
 
@@ -182,6 +187,11 @@ export function Printer(props) {
     set_print_started_at(Date.now())
 
     console.log('cmds', cmds)
+
+    while (RUNNING_COMMAND[props.printer.url]) {
+      console.log('waiting for currently running command to finish')
+      await wait(1000);
+    }
 
     try {
       for (let i=0; i<cmds.length; ++i) {
@@ -245,7 +255,7 @@ export function Printer(props) {
     await send_cmd('G28')
   }
 
-  if (ws) {
+  if (ws && !RUNNING_COMMAND[props.printer.url]) {
     actions.push(
       <Tooltip onActionClick={()=>home()} title="Home"><HomeOutlined /></Tooltip>
     )
@@ -329,6 +339,8 @@ export function Printer(props) {
           {print_description}
 
           {ws===undefined ? <Alert message="Printer Disconnected" type="error" showIcon /> : null}
+
+          {(info && Object.keys(info)) || file?.name ? null : <PrinterOutlined style={{fontSize:'120pt', paddingTop:'20pt', color:'#ddd'}} />}
   
           <Descriptions column={{ xs: 1, sm: 1, md: 2, lg:2}} size='small' style={{marginTop:'.5em'}}>
             {file?.name ? <Descriptions.Item label="File">
@@ -373,7 +385,7 @@ export function Printer(props) {
           {!log?.length ? null : 
             <Collapse items={[{
               key: 'log',
-              label: <code><CodeOutlined /> {log[log.length-1][0]} <ArrowRightOutlined /> {log[log.length-1][1] ? log[log.length-1][1] : <Spin size='small'/>}</code>,
+              label: <code style={{fontSize:'smaller'}}><CodeOutlined /> {show_status(log[log.length-1])}</code>,
               children: <pre style={{margin:0, fontSize:'smaller', maxHeight:'10em', overflowY:'scroll'}}><code>
                 {log.map((line,i)=>(<div key={i}>{line[0]} <ArrowRightOutlined /> {line[1] ? line[1] : <Spin size='small'/>}</div>))}
               </code></pre>,
@@ -388,6 +400,16 @@ export function Printer(props) {
     </Col>
 
   )
+}
+
+function show_status(log_entry) {
+  let status = <Spin size='small'/>
+  if (log_entry[1]?.toLowerCase().startsWith('error')) status = <><ArrowRightOutlined />&nbsp;{log_entry[1]}</>
+  if (log_entry[1]?.split(' ')[0]=='ok') status = <CheckOutlined style={{color:"green"}} />
+  return <>
+    {log_entry[0]}&nbsp;
+    {status}
+  </>
 }
 
 function metersToGrams(length) {
