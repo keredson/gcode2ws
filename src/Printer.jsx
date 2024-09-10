@@ -322,7 +322,11 @@ export function Printer(props) {
 
   const hidden_upload_ref = useRef(null);
   const hidden_upload = (
-    <input type='file' ref={hidden_upload_ref} onChange={e => set_file(e.target.files[0]) || (e.target.value='')} beforeUpload={()=>false} style={{display:'none'}}/>
+    <input type='file' ref={hidden_upload_ref} 
+      onChange={e => set_file(e.target.files[0]) || (e.target.value='')} 
+      beforeUpload={()=>false} style={{display:'none'}}
+      accept='.gcode'
+    />
   )
 
   if (!file) {
