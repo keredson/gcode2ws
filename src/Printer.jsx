@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Card, Col, Descriptions, Space, Flex, Upload, Button, Progress, Popconfirm, Tooltip, Spin, Alert } from 'antd';
-import { PrinterTwoTone, UploadOutlined, DeleteOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined, ClearOutlined } from '@ant-design/icons';
+import { Card, Col, Descriptions, Space, Flex, Progress, Popconfirm, Tooltip, Spin, Alert, Collapse } from 'antd';
+import { PrinterTwoTone, UploadOutlined, PrinterOutlined, StopOutlined, LinkOutlined, WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined, ClearOutlined, PlayCircleOutlined, PauseCircleOutlined, ArrowRightOutlined, SendOutlined, CodeOutlined } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
 import {actionClicks, ActionWithText } from './AntdActionUtils'
@@ -25,6 +25,8 @@ export function Printer(props) {
   const [bed_temp_setpoint, set_bed_temp_setpoint] = useState(null)
   const [print_started_at, set_print_started_at] = useState(null)
   const [ws, set_ws] = useState(props.printer.ws)
+  const [log, set_log] = useState([])
+  const [pause, set_pause] = useState(false)
   
   const index = 1
 
@@ -33,10 +35,20 @@ export function Printer(props) {
     request_cancel_ref.current = request_cancel;
   }, [request_cancel]);
 
+  const pause_ref = useRef(pause);
+  useEffect(() => {
+    pause_ref.current = pause;
+  }, [pause]);
+
   const ws_ref = useRef(ws);
   useEffect(() => {
     ws_ref.current = ws;
   }, [ws]);
+
+  const log_ref = useRef(log);
+  useEffect(() => {
+    log_ref.current = log;
+  }, [log]);
 
   async function connect(first_time) {
     if (!first_time) set_ws(null)
@@ -62,14 +74,17 @@ export function Printer(props) {
       if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
       if (state.B) set_bed_temp(state.B);
       if (state.Bs) set_bed_temp_setpoint(state.Bs);
-      if (RUNNING_COMMAND[props.printer.url].resolve_ok && state.ok) {
+      if (RUNNING_COMMAND[props.printer.url]?.resolve_ok && state.ok) {
         RUNNING_COMMAND[props.printer.url].resolve_ok();
-        RUNNING_COMMAND[props.printer.url] = {cmd:null, resolve_ok:null, reject_ok:null}
+        RUNNING_COMMAND[props.printer.url] = null
       }
+      let log = [...log_ref.current];
+      log[log.length-1][1] = event.data
+      set_log(log)
     };
     ws.onerror = (error) => {
       RUNNING_COMMAND[props.printer.url]?.reject_ok(error);
-      RUNNING_COMMAND[props.printer.url] = {cmd:null, resolve_ok:null, reject_ok:null}
+      RUNNING_COMMAND[props.printer.url] = null
     };
   }
 
@@ -80,10 +95,14 @@ export function Printer(props) {
   }, []);
 
   function send_cmd(cmd) {
+    if (RUNNING_COMMAND[props.printer.url]) throw Exception('command in progress')
     return new Promise((resolve_ok, reject_ok) => {
       RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
       console.log(cmd, '=>', ws_ref.current)
       ws_ref.current.send(cmd);
+      let log = [...log_ref.current];
+      log.push([cmd,])
+      set_log(log)
     });
   }
 
@@ -138,7 +157,7 @@ export function Printer(props) {
 
   async function inquire() {
     while (!ws_ref.current) await wait(1000)
-    await send_cmd('M105')
+    //await send_cmd('M105')
   }
 
   async function handle_gcode(info) {
@@ -149,8 +168,14 @@ export function Printer(props) {
   async function print(cmds) {
     set_request_print(true)
     set_print_exception(false)
+    set_request_cancel(false)
+    set_cancelled(false)
+    set_pause(false)
 
-    while (!ws_ref.current) await wait(1000)
+    while (!ws_ref.current) {
+      console.log('waiting for websocket')
+      await wait(1000)
+    }
 
     set_request_print(false)
     set_progress(0)
@@ -160,6 +185,10 @@ export function Printer(props) {
 
     try {
       for (let i=0; i<cmds.length; ++i) {
+        while (pause_ref.current && !request_cancel_ref.current) {
+          console.log('waiting to be unpaused')
+          await wait(1000);
+        }
         if (request_cancel_ref.current) {
           console.log('cancelling')
           await(2500)
@@ -239,8 +268,14 @@ export function Printer(props) {
   }
 
   if (progress!=null && progress_percent<100 && !cancelled && !request_cancel) {
+    if (pause) actions.push(
+      <Tooltip onActionClick={()=>set_pause(false)} title="Continue"><PlayCircleOutlined /></Tooltip>
+    )
+    else actions.push(
+      <Tooltip onActionClick={()=>set_pause(true)} title="Pause"><PauseCircleOutlined /></Tooltip>
+    )
     actions.push(
-      <Popconfirm key='cancel' description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
+      <Popconfirm key='cancel' onActionClick={()=>{}} description="Are you sure you want to cancel?" onConfirm={()=>set_request_cancel(true)}>
         <ActionWithText style={{color:'#ff7875'}} icon={request_print ? <Spin/> : <StopOutlined />}>
           Cancel
         </ActionWithText>
@@ -287,7 +322,7 @@ export function Printer(props) {
 
   return (
     <Col xs={24} sm={24} md={24} lg={24}>
-      <Card actions={actionClicks(actions)}>
+      <Card actions={actionClicks(actions)} style={{boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',}}>
 
         <Flex vertical align='center' gap='small'>
 
@@ -335,6 +370,16 @@ export function Printer(props) {
 
           {progress==null ? null : <Progress percent={progress_percent} status={print_exception ? 'exception' : null} />}
 
+          {!log?.length ? null : 
+            <Collapse items={[{
+              key: 'log',
+              label: <code><CodeOutlined /> {log[log.length-1][0]} <ArrowRightOutlined /> {log[log.length-1][1] ? log[log.length-1][1] : <Spin size='small'/>}</code>,
+              children: <pre style={{margin:0, fontSize:'smaller', maxHeight:'10em', overflowY:'scroll'}}><code>
+                {log.map((line,i)=>(<div key={i}>{line[0]} <ArrowRightOutlined /> {line[1] ? line[1] : <Spin size='small'/>}</div>))}
+              </code></pre>,
+            }]} style={{width:'100%'}}  size='small' />
+          }
+
           {hidden_upload}
 
         </Flex>
@@ -381,7 +426,7 @@ function parse_status(str) {
     try {
       const [key, value] = pair.split(':')
       result[key] = parseFloat(value)
-      if (last_key && key.startsWith('/')) result[key+'s'] = parseFloat(key.slice(1))
+      if (last_key && key.startsWith('/')) result[last_key+'s'] = parseFloat(key.slice(1))
       last_key = key
     } catch (error) {
       console.log('could not parse status pair', pair)
