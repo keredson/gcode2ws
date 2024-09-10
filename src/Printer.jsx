@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Card, Col, Descriptions, Space, Flex, Progress, Popconfirm, Tooltip, Spin, Alert, Collapse } from 'antd';
+import { Card, Col, Descriptions, Space, Flex, Progress, Popconfirm, Tooltip, Spin, Alert, Collapse, Input } from 'antd';
 import { 
   PrinterTwoTone, UploadOutlined, PrinterOutlined, StopOutlined, LinkOutlined, 
   WarningOutlined, CloseOutlined, HomeOutlined, LoadingOutlined, ClearOutlined, 
   PlayCircleOutlined, PauseCircleOutlined, ArrowRightOutlined, CheckOutlined, 
-  CodeOutlined
+  CodeOutlined, SendOutlined
 } from '@ant-design/icons';
 import pretty from 'pretty-time'
 
@@ -32,6 +32,7 @@ export function Printer(props) {
   const [ws, set_ws] = useState(props.printer.ws)
   const [log, set_log] = useState([])
   const [pause, set_pause] = useState(false)
+  const [manual_cmd_entry, set_manual_cmd_entry] = useState('')
   
   const index = 1
 
@@ -100,15 +101,24 @@ export function Printer(props) {
   }, []);
 
   function send_cmd(cmd) {
-    //if (RUNNING_COMMAND[props.printer.url]) throw Exception('command in progress')
-    return new Promise((resolve_ok, reject_ok) => {
-      RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
-      console.log(cmd, '=>', ws_ref.current)
-      ws_ref.current.send(cmd);
-      let log = [...log_ref.current];
-      log.push([cmd,])
-      set_log(log)
-    });
+    return new Promise((resolve_ok, reject_ok) => _send_cmd(cmd, resolve_ok, reject_ok));
+  }
+
+  function _send_cmd(cmd, resolve_ok, reject_ok) {
+    
+    if (RUNNING_COMMAND[props.printer.url]) {
+      return setTimeout(()=>_send_cmd(cmd, resolve_ok, reject_ok), 1000)
+    }
+    RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
+    console.log(cmd, '=>', ws_ref.current)
+    let log = [...log_ref.current];
+    log.push([cmd,])
+    if (cmd.trim().startsWith(';')) {
+      resolve_ok()
+      log[log.length-1][1] = 'ok'
+      RUNNING_COMMAND[props.printer.url] = null
+    } else ws_ref.current.send(cmd);
+    set_log(log)
   }
 
   useEffect(() => {
@@ -194,6 +204,7 @@ export function Printer(props) {
     }
 
     try {
+      await send_cmd('; printing '+file.name)
       for (let i=0; i<cmds.length; ++i) {
         while (pause_ref.current && !request_cancel_ref.current) {
           console.log('waiting to be unpaused')
@@ -329,6 +340,10 @@ export function Printer(props) {
     </Tooltip>
   )
 
+  function do_manual_cmd_entry() {
+    set_manual_cmd_entry('')
+    send_cmd(manual_cmd_entry)
+  }
 
   return (
     <Col xs={24} sm={24} md={24} lg={24}>
@@ -386,11 +401,26 @@ export function Printer(props) {
             <Collapse items={[{
               key: 'log',
               label: <code style={{fontSize:'smaller'}}><CodeOutlined /> {show_status(log[log.length-1])}</code>,
-              children: <pre style={{margin:0, fontSize:'smaller', maxHeight:'10em', overflowY:'scroll'}}><code>
-                {log.map((line,i)=>(<div key={i}>{line[0]} <ArrowRightOutlined /> {line[1] ? line[1] : <Spin size='small'/>}</div>))}
-              </code></pre>,
+              children: <>
+                <pre style={{margin:0, fontSize:'smaller', maxHeight:'10em', overflowY:'scroll'}}><code>
+                  {log.map((line,i)=>(<div key={i}>{line[0]} <ArrowRightOutlined /> {line[1] ? line[1] : <Spin size='small'/>}</div>))}
+                </code></pre>
+              </>,
             }]} style={{width:'100%'}}  size='small' />
           }
+
+          <Input 
+            className='cmd-input' size="small"
+            id='cmd-input'
+            addonAfter={<SendOutlined onClick={()=>do_manual_cmd_entry()} />} 
+            placeholder="Enter G-Code..." 
+            prefix={<CodeOutlined />} 
+            defaultValue={''}
+            value={manual_cmd_entry}
+            onChange={e=>set_manual_cmd_entry(e.target.value)}
+            onPressEnter={(e)=>do_manual_cmd_entry()}
+//            disabled={RUNNING_COMMAND[props.printer.url]}
+          />
 
           {hidden_upload}
 
@@ -404,7 +434,8 @@ export function Printer(props) {
 
 function show_status(log_entry) {
   let status = <Spin size='small'/>
-  if (log_entry[1]?.toLowerCase().startsWith('error')) status = <><ArrowRightOutlined />&nbsp;{log_entry[1]}</>
+  if (log_entry[1]?.toLowerCase().startsWith('error:') || log_entry[1]?.toLowerCase().startsWith('echo:')) status = <><ArrowRightOutlined /> <CloseOutlined style={{color:"red"}} /> {log_entry[1]}</>
+  if (log_entry[1]?.toLowerCase().startsWith('echo:')) status = <><ArrowRightOutlined /> <CloseOutlined style={{color:"red"}} /> {log_entry[1].slice(5)}</>
   if (log_entry[1]?.split(' ')[0]=='ok') status = <CheckOutlined style={{color:"green"}} />
   return <>
     {log_entry[0]}&nbsp;

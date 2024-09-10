@@ -46,3 +46,8 @@ body:before {
 }
 
 .github-fork-ribbon:before { background-color: #333; }
+
+.cmd-input .ant-input {
+  font-family: monospace;
+  font-size: smaller !important;
+}
