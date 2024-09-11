@@ -111,7 +111,7 @@ export function Printer(props) {
     }
     RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
     console.log(cmd, '=>', ws_ref.current)
-    let log = [...log_ref.current];
+    let log = log_ref.current.slice(-100);
     log.push([cmd,])
     if (cmd.trim().startsWith(';')) {
       resolve_ok()
