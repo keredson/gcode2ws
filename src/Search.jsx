@@ -48,7 +48,11 @@ export function Search(props) {
 
   function add_printer(ws, url) {
     console.log('add_printer...', ws, url)
-    //wait(2500).then(()=>props.add_printer(ws, url))
+    if (!ws) {
+      if (url.indexOf('://')<0) url = 'ws://'+url;
+      if (url.split('//')[1]?.indexOf(':')<0) url = url+':81';
+        ws = new WebSocket(url);
+    }
     props.add_printer(ws, url)
     set_found_some(found_some_ref.current+1)
   }
@@ -98,7 +102,7 @@ export function Search(props) {
 
   function search_or_add_printer(ip_and_port) {
     if (subnet) search(ip_and_port);
-    else if (full_ip) add_printer(ip_and_port);
+    else if (full_ip) add_printer(null, ip_and_port);
     else alert("Please enter and ip/port (like 192.168.0.57 or 192.168.0.57:81) or a subnet (like 192.168.0.X).");
   }
 
