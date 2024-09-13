@@ -33,8 +33,14 @@ export function Printer(props) {
   const [log, set_log] = useState([])
   const [pause, set_pause] = useState(false)
   const [manual_cmd_entry, set_manual_cmd_entry] = useState('')
+  const [pic, set_pic] = useState('')
   
   const index = 1
+
+  const pic_ref = useRef(pic);
+  useEffect(() => {
+    pic_ref.current = pic;
+  }, [pic]);
 
   const request_cancel_ref = useRef(request_cancel);
   useEffect(() => {
@@ -75,19 +81,31 @@ export function Printer(props) {
     }
     ws.onmessage = (event) => {
       console.log(event.data, '<=', ws_ref.current)
-      const state = parse_status(event.data)
-      if (state.T) set_nozzle_temp(state.T);
-      if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
-      if (state.B) set_bed_temp(state.B);
-      if (state.Bs) set_bed_temp_setpoint(state.Bs);
-      if (RUNNING_COMMAND[props.printer.url]?.resolve_ok && state.ok) {
-        RUNNING_COMMAND[props.printer.url].resolve_ok();
-        RUNNING_COMMAND[props.printer.url] = null
+      if (typeof event.data === 'string') {
+        const state = parse_status(event.data)
+        if (state.T) set_nozzle_temp(state.T);
+        if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
+        if (state.B) set_bed_temp(state.B);
+        if (state.Bs) set_bed_temp_setpoint(state.Bs);
+        if (RUNNING_COMMAND[props.printer.url]?.resolve_ok && state.ok) {
+          RUNNING_COMMAND[props.printer.url].resolve_ok();
+          RUNNING_COMMAND[props.printer.url] = null
+        }
+        let log = [...log_ref.current];
+        log[log.length-1][1] = event.data
+        set_log(log)
+      } else if (event.data instanceof ArrayBuffer) {
+        if (pic_ref.current) URL.revokeObjectURL(pic_ref.current);
+        set_pic(URL.createObjectURL(event.data));
+      } else if (event.data instanceof Blob) {
+          event.data.arrayBuffer().then(arrayBuffer => {
+            if (pic_ref.current) URL.revokeObjectURL(pic_ref.current);
+            set_pic(URL.createObjectURL(event.data));
+          });
+      } else {
+          console.log('Unknown message type:', event.data);
       }
-      let log = [...log_ref.current];
-      log[log.length-1][1] = event.data
-      set_log(log)
-    };
+  };
     ws.onerror = (error) => {
       RUNNING_COMMAND[props.printer.url]?.reject_ok(error);
       RUNNING_COMMAND[props.printer.url] = null
@@ -356,6 +374,8 @@ export function Printer(props) {
         <Flex vertical align='center' gap='small'>
 
           {print_description}
+
+          {pic ? <img src={pic} />: null}
 
           {ws===undefined ? <Alert message="Printer Disconnected" type="error" showIcon /> : null}
 
