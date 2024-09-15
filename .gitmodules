@@ -1,0 +1,3 @@
+[submodule "ws2usb/BOSL2"]
+	path = ws2usb/BOSL2
+	url = https://github.com/BelfrySCAD/BOSL2.git
