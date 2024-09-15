@@ -11,8 +11,6 @@ import pretty from 'pretty-time'
 import {actionClicks, ActionWithText } from './AntdActionUtils'
 import {wait} from './util'
 
-const RUNNING_COMMAND = {} // {url: {cmd, resolve_ok, reject_ok}}
-
 export function Printer(props) {
   
   const [file, set_file] = useState(null)
@@ -34,8 +32,14 @@ export function Printer(props) {
   const [pause, set_pause] = useState(false)
   const [manual_cmd_entry, set_manual_cmd_entry] = useState('')
   const [pic, set_pic] = useState('')
+  const [running_command, set_running_command] = useState(null) // {url: {cmd, resolve_ok, reject_ok}}
   
   const index = 1
+
+  const running_command_ref = useRef(running_command);
+  useEffect(() => {
+    running_command_ref.current = running_command;
+  }, [running_command]);
 
   const pic_ref = useRef(pic);
   useEffect(() => {
@@ -87,9 +91,9 @@ export function Printer(props) {
         if (state.Ts) set_nozzle_temp_setpoint(state.Ts);
         if (state.B) set_bed_temp(state.B);
         if (state.Bs) set_bed_temp_setpoint(state.Bs);
-        if (RUNNING_COMMAND[props.printer.url]?.resolve_ok && state.ok) {
-          RUNNING_COMMAND[props.printer.url].resolve_ok();
-          RUNNING_COMMAND[props.printer.url] = null
+        if (running_command_ref.current?.resolve_ok && state.ok) {
+          running_command_ref.current.resolve_ok();
+          running_command_ref.current = null
         }
         let log = [...log_ref.current];
         log[log.length-1][1] = event.data
@@ -107,8 +111,8 @@ export function Printer(props) {
       }
   };
     ws.onerror = (error) => {
-      RUNNING_COMMAND[props.printer.url]?.reject_ok(error);
-      RUNNING_COMMAND[props.printer.url] = null
+      running_command_ref.current?.reject_ok(error);
+      running_command_ref.current = null
     };
   }
 
@@ -124,17 +128,17 @@ export function Printer(props) {
 
   function _send_cmd(cmd, resolve_ok, reject_ok) {
     
-    if (RUNNING_COMMAND[props.printer.url]) {
+    if (running_command_ref.current) {
       return setTimeout(()=>_send_cmd(cmd, resolve_ok, reject_ok), 1000)
     }
-    RUNNING_COMMAND[props.printer.url] = {cmd, resolve_ok, reject_ok}
+    set_running_command({cmd, resolve_ok, reject_ok})
     console.log(cmd, '=>', ws_ref.current)
     let log = log_ref.current.slice(-100);
     log.push([cmd,])
     if (cmd.trim().startsWith(';')) {
       resolve_ok()
       log[log.length-1][1] = 'ok'
-      RUNNING_COMMAND[props.printer.url] = null
+      set_running_command(null)
     } else ws_ref.current.send(cmd);
     set_log(log)
   }
@@ -216,7 +220,7 @@ export function Printer(props) {
 
     console.log('cmds', cmds)
 
-    while (RUNNING_COMMAND[props.printer.url]) {
+    while (running_command) {
       console.log('waiting for currently running command to finish')
       await wait(1000);
     }
@@ -284,7 +288,7 @@ export function Printer(props) {
     await send_cmd('G28')
   }
 
-  if (ws && !RUNNING_COMMAND[props.printer.url]) {
+  if (ws && !running_command) {
     actions.push(
       <Tooltip onActionClick={()=>home()} title="Home"><HomeOutlined /></Tooltip>
     )
@@ -443,7 +447,6 @@ export function Printer(props) {
             value={manual_cmd_entry}
             onChange={e=>set_manual_cmd_entry(e.target.value)}
             onPressEnter={(e)=>do_manual_cmd_entry()}
-//            disabled={RUNNING_COMMAND[props.printer.url]}
           />
 
           {hidden_upload}
